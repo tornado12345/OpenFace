@@ -1,4 +1,4 @@
-function [ labels, valid_ids, vid_ids  ] = extract_SEMAINE_labels( SEMAINE_dir, recs, aus )
+function [ labels, valid_ids, vid_ids, vid_names  ] = extract_SEMAINE_labels( SEMAINE_dir, recs, aus )
 %EXTRACT_SEMAINE_LABELS Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -16,6 +16,7 @@ function [ labels, valid_ids, vid_ids  ] = extract_SEMAINE_labels( SEMAINE_dir, 
     
     labels = cell(numel(recs), 1);
     valid_ids = cell(numel(recs), 1);
+    vid_names = cell(numel(recs), 1);
     vid_ids = zeros(numel(recs), 2);
     
     for i=1:numel(recs)
@@ -24,16 +25,14 @@ function [ labels, valid_ids, vid_ids  ] = extract_SEMAINE_labels( SEMAINE_dir, 
         
         vid_ids(i,:) = dlmread([SEMAINE_dir, '/', recs{i}, '.txt'], ' ');
         
+        vid_names_c = dir([SEMAINE_dir, '/', recs{i}, '/*.avi']);
+        [~, vid_names{i},~] = fileparts(vid_names_c.name);
+        
         xml_file = [SEMAINE_dir, recs{i}, '\' file.name];
         [root_xml, name_xml, ~] = fileparts(xml_file);
-        m_file = [root_xml, name_xml, '.mat'];
             
-        if(~exist(m_file, 'file'))            
-            activations = ParseSEMAINEAnnotations([SEMAINE_dir, recs{i}, '\' file.name]);
-            save(m_file, 'activations');
-        else
-            load(m_file);
-        end
+        activations = ParseSEMAINEAnnotations([SEMAINE_dir, recs{i}, '/' file.name]);
+            
         if(size(activations,1) < vid_ids(i,2))
             vid_ids(i,2) = size(activations,1);
             if(vid_ids(i,2) > 2999)

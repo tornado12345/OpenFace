@@ -1,37 +1,13 @@
 ///////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 2016, Carnegie Mellon University and University of Cambridge,
+// Copyright (C) 2017, Carnegie Mellon University and University of Cambridge,
 // all rights reserved.
 //
-// THIS SOFTWARE IS PROVIDED “AS IS” FOR ACADEMIC USE ONLY AND ANY EXPRESS
-// OR IMPLIED WARRANTIES WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
-// BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY.
-// OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-// HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-// ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+// ACADEMIC OR NON-PROFIT ORGANIZATION NONCOMMERCIAL RESEARCH USE ONLY
 //
-// Notwithstanding the license granted herein, Licensee acknowledges that certain components
-// of the Software may be covered by so-called “open source” software licenses (“Open Source
-// Components”), which means any software licenses approved as open source licenses by the
-// Open Source Initiative or any substantially similar licenses, including without limitation any
-// license that, as a condition of distribution of the software licensed under such license,
-// requires that the distributor make the software available in source code format. Licensor shall
-// provide a list of Open Source Components for a particular version of the Software upon
-// Licensee’s request. Licensee will comply with the applicable terms of such licenses and to
-// the extent required by the licenses covering Open Source Components, the terms of such
-// licenses will apply in lieu of the terms of this Agreement. To the extent the terms of the
-// licenses applicable to Open Source Components prohibit any of the restrictions in this
-// License Agreement with respect to such Open Source Component, such restrictions will not
-// apply to such Open Source Component. To the extent the terms of the licenses applicable to
-// Open Source Components require Licensor to make an offer to provide source code or
-// related information in connection with the Software, such offer is hereby made. Any request
-// for source code or related information should be directed to cl-face-tracker-distribution@lists.cam.ac.uk
-// Licensee acknowledges receipt of notices for the Open Source Components for the initial
-// delivery of the Software.
+// BY USING OR DOWNLOADING THE SOFTWARE, YOU ARE AGREEING TO THE TERMS OF THIS LICENSE AGREEMENT.  
+// IF YOU DO NOT AGREE WITH THESE TERMS, YOU MAY NOT USE OR DOWNLOAD THE SOFTWARE.
+//
+// License can be found in OpenFace-license.txt
 
 //     * Any publications arising from the use of this software, including but
 //       not limited to academic journal and conference publications, technical
@@ -59,6 +35,14 @@
 
 // FaceTrackingVidMulti.cpp : Defines the entry point for the multiple face tracking console application.
 #include "LandmarkCoreIncludes.h"
+
+#include "VisualizationUtils.h"
+#include "Visualizer.h"
+#include "SequenceCapture.h"
+#include <RecorderOpenFace.h>
+#include <RecorderOpenFaceParameters.h>
+#include <GazeEstimation.h>
+#include <FaceAnalyser.h>
 
 #include <fstream>
 #include <sstream>
@@ -130,17 +114,15 @@ int main (int argc, char **argv)
 
 	vector<string> arguments = get_arguments(argc, argv);
 
-	// Some initial parameters that can be overriden from command line	
-	vector<string> files, depth_directories, tracked_videos_output, dummy_out;
-	
-	// By default try webcam 0
-	int device = 0;
+	// no arguments: output usage
+	if (arguments.size() == 1)
+	{
+		cout << "For command line arguments see:" << endl;
+		cout << " https://github.com/TadasBaltrusaitis/OpenFace/wiki/Command-line-arguments";
+		return 0;
+	}
 
-	// cx and cy aren't necessarilly in the image center, so need to be able to override it (start with unit vals and init them if none specified)
-    float fx = 600, fy = 600, cx = 0, cy = 0;
-			
 	LandmarkDetector::FaceModelParameters det_params(arguments);
-	det_params.use_face_template = true;
 	// This is so that the model would not try re-initialising itself
 	det_params.reinit_video_every = -1;
 
@@ -148,115 +130,89 @@ int main (int argc, char **argv)
 
 	vector<LandmarkDetector::FaceModelParameters> det_parameters;
 	det_parameters.push_back(det_params);
-
-	// Get the input output file parameters
-	bool u;
-	string output_codec;
-	LandmarkDetector::get_video_input_output_params(files, depth_directories, dummy_out, tracked_videos_output, u, output_codec, arguments);
-	// Get camera parameters
-	LandmarkDetector::get_camera_params(device, fx, fy, cx, cy, arguments);
 	
 	// The modules that are being used for tracking
-	vector<LandmarkDetector::CLNF> clnf_models;
+	vector<LandmarkDetector::CLNF> face_models;
 	vector<bool> active_models;
 
 	int num_faces_max = 4;
 
-	LandmarkDetector::CLNF clnf_model(det_parameters[0].model_location);
-	clnf_model.face_detector_HAAR.load(det_parameters[0].face_detector_location);
-	clnf_model.face_detector_location = det_parameters[0].face_detector_location;
+	LandmarkDetector::CLNF face_model(det_parameters[0].model_location);
+	face_model.face_detector_HAAR.load(det_parameters[0].face_detector_location);
+	face_model.face_detector_location = det_parameters[0].face_detector_location;
 	
-	clnf_models.reserve(num_faces_max);
+	face_models.reserve(num_faces_max);
 
-	clnf_models.push_back(clnf_model);
+	face_models.push_back(face_model);
 	active_models.push_back(false);
 
 	for (int i = 1; i < num_faces_max; ++i)
 	{
-		clnf_models.push_back(clnf_model);
+		face_models.push_back(face_model);
 		active_models.push_back(false);
 		det_parameters.push_back(det_params);
 	}
 	
-	// If multiple video files are tracked, use this to indicate if we are done
-	bool done = false;	
-	int f_n = -1;
+	// Load facial feature extractor and AU analyser (make sure it is static, as we don't reidentify faces)
+	FaceAnalysis::FaceAnalyserParameters face_analysis_params(arguments);
+	face_analysis_params.OptimizeForImages();
+	FaceAnalysis::FaceAnalyser face_analyser(face_analysis_params);
 
-	// If cx (optical axis centre) is undefined will use the image size/2 as an estimate
-	bool cx_undefined = false;
-	if(cx == 0 || cy == 0)
+	if (!face_model.eye_model)
 	{
-		cx_undefined = true;
-	}		
-	
-	while(!done) // this is not a for loop as we might also be reading from a webcam
+		cout << "WARNING: no eye model found" << endl;
+	}
+
+	if (face_analyser.GetAUClassNames().size() == 0 && face_analyser.GetAUClassNames().size() == 0)
 	{
-		
-		string current_file;
+		cout << "WARNING: no Action Unit models found" << endl;
+	}
 
-		// We might specify multiple video files as arguments
-		if(files.size() > 0)
-		{
-			f_n++;			
-		    current_file = files[f_n];
-		}
+	// Open a sequence
+	Utilities::SequenceCapture sequence_reader;
 
-		bool use_depth = !depth_directories.empty();	
+	// A utility for visualizing the results (show just the tracks)
+	Utilities::Visualizer visualizer(arguments);
 
-		// Do some grabbing
-		cv::VideoCapture video_capture;
-		if( current_file.size() > 0 )
-		{
-			INFO_STREAM( "Attempting to read from file: " << current_file );
-			video_capture = cv::VideoCapture( current_file );
-		}
-		else
-		{
-			INFO_STREAM( "Attempting to capture from device: " << device );
-			video_capture = cv::VideoCapture( device );
+	// Tracking FPS for visualization
+	Utilities::FpsTracker fps_tracker;
+	fps_tracker.AddFrame();
 
-			// Read a first frame often empty in camera
-			cv::Mat captured_image;
-			video_capture >> captured_image;
-		}
+	int sequence_number = 0;
 
-		if (!video_capture.isOpened())
-		{
-			FATAL_STREAM("Failed to open video source");
-			return 1;
-		}
-		else INFO_STREAM( "Device or file opened");
+	while(true) // this is not a for loop as we might also be reading from a webcam
+	{
 
-		cv::Mat captured_image;
-		video_capture >> captured_image;		
-		
+		// The sequence reader chooses what to open based on command line arguments provided
+		if (!sequence_reader.Open(arguments))
+			break;
 
-		// If optical centers are not defined just use center of image
-		if(cx_undefined)
-		{
-			cx = captured_image.cols / 2.0f;
-			cy = captured_image.rows / 2.0f;
-		}
-		
+		INFO_STREAM("Device or file opened");
+
+		cv::Mat captured_image = sequence_reader.GetNextFrame();
+
 		int frame_count = 0;
-		
-		// saving the videos
-		cv::VideoWriter writerFace;
-		if(!tracked_videos_output.empty())
+
+		Utilities::RecorderOpenFaceParameters recording_params(arguments, true, sequence_reader.IsWebcam(),
+			sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy, sequence_reader.fps);
+		if (!face_model.eye_model)
 		{
-			try
-			{
-				writerFace = cv::VideoWriter(tracked_videos_output[f_n], CV_FOURCC(output_codec[0],output_codec[1],output_codec[2],output_codec[3]), 30, captured_image.size(), true);
-			}
-			catch(cv::Exception e)
-			{
-				WARN_STREAM( "Could not open VideoWriter, OUTPUT FILE WILL NOT BE WRITTEN. Currently using codec " << output_codec << ", try using an other one (-oc option)");
-			}
+			recording_params.setOutputGaze(false);
 		}
-		
-		// For measuring the timings
-		int64 t1,t0 = cv::getTickCount();
-		double fps = 10;
+
+		Utilities::RecorderOpenFace open_face_rec(sequence_reader.name, recording_params, arguments);
+
+
+		if (sequence_reader.IsWebcam())
+		{
+			INFO_STREAM("WARNING: using a webcam in feature extraction, forcing visualization of tracking to allow quitting the application (press q)");
+			visualizer.vis_track = true;
+		}
+
+		if (recording_params.outputAUs())
+		{
+			INFO_STREAM("WARNING: using a AU detection in multiple face mode, it might not be as accurate and is experimental");
+		}
 
 
 		INFO_STREAM( "Starting tracking");
@@ -264,46 +220,12 @@ int main (int argc, char **argv)
 		{		
 
 			// Reading the images
-			cv::Mat_<float> depth_image;
-			cv::Mat_<uchar> grayscale_image;
-
-			cv::Mat disp_image = captured_image.clone();
-
-			if(captured_image.channels() == 3)
-			{
-				cv::cvtColor(captured_image, grayscale_image, CV_BGR2GRAY);				
-			}
-			else
-			{
-				grayscale_image = captured_image.clone();				
-			}
+			cv::Mat_<uchar> grayscale_image = sequence_reader.GetGrayFrame();
 		
-			// Get depth image
-			if(use_depth)
-			{
-				char* dst = new char[100];
-				std::stringstream sstream;
-
-				sstream << depth_directories[f_n] << "\\depth%05d.png";
-				sprintf(dst, sstream.str().c_str(), frame_count + 1);
-				// Reading in 16-bit png image representing depth
-				cv::Mat_<short> depth_image_16_bit = cv::imread(string(dst), -1);
-
-				// Convert to a floating point depth image
-				if(!depth_image_16_bit.empty())
-				{
-					depth_image_16_bit.convertTo(depth_image, CV_32F);
-				}
-				else
-				{
-					WARN_STREAM( "Can't find depth image" );
-				}
-			}
-
 			vector<cv::Rect_<double> > face_detections;
 
 			bool all_models_active = true;
-			for(unsigned int model = 0; model < clnf_models.size(); ++model)
+			for(unsigned int model = 0; model < face_models.size(); ++model)
 			{
 				if(!active_models[model])
 				{
@@ -317,33 +239,32 @@ int main (int argc, char **argv)
 				if(det_parameters[0].curr_face_detector == LandmarkDetector::FaceModelParameters::HOG_SVM_DETECTOR)
 				{
 					vector<double> confidences;
-					LandmarkDetector::DetectFacesHOG(face_detections, grayscale_image, clnf_models[0].face_detector_HOG, confidences);
+					LandmarkDetector::DetectFacesHOG(face_detections, grayscale_image, face_models[0].face_detector_HOG, confidences);
 				}
 				else
 				{
-					LandmarkDetector::DetectFaces(face_detections, grayscale_image, clnf_models[0].face_detector_HAAR);
+					LandmarkDetector::DetectFaces(face_detections, grayscale_image, face_models[0].face_detector_HAAR);
 				}
 
 			}
 
 			// Keep only non overlapping detections (also convert to a concurrent vector
-			NonOverlapingDetections(clnf_models, face_detections);
+			NonOverlapingDetections(face_models, face_detections);
 
 			vector<tbb::atomic<bool> > face_detections_used(face_detections.size());
 
 			// Go through every model and update the tracking
-			tbb::parallel_for(0, (int)clnf_models.size(), [&](int model){
+			tbb::parallel_for(0, (int)face_models.size(), [&](int model){
 			//for(unsigned int model = 0; model < clnf_models.size(); ++model)
 			//{
 
 				bool detection_success = false;
 
 				// If the current model has failed more than 4 times in a row, remove it
-				if(clnf_models[model].failures_in_a_row > 4)
+				if(face_models[model].failures_in_a_row > 4)
 				{				
 					active_models[model] = false;
-					clnf_models[model].Reset();
-
+					face_models[model].Reset();
 				}
 
 				// If the model is inactive reactivate it with new detections
@@ -357,12 +278,12 @@ int main (int argc, char **argv)
 						{
 					
 							// Reinitialise the model
-							clnf_models[model].Reset();
+							face_models[model].Reset();
 
 							// This ensures that a wider window is used for the initial landmark localisation
-							clnf_models[model].detection_success = false;
-							detection_success = LandmarkDetector::DetectLandmarksInVideo(grayscale_image, depth_image, face_detections[detection_ind], clnf_models[model], det_parameters[model]);
-													
+							face_models[model].detection_success = false;
+							detection_success = LandmarkDetector::DetectLandmarksInVideo(grayscale_image, face_detections[detection_ind], face_models[model], det_parameters[model]);
+
 							// This activates the model
 							active_models[model] = true;
 
@@ -375,129 +296,111 @@ int main (int argc, char **argv)
 				else
 				{
 					// The actual facial landmark detection / tracking
-					detection_success = LandmarkDetector::DetectLandmarksInVideo(grayscale_image, depth_image, clnf_models[model], det_parameters[model]);
+					detection_success = LandmarkDetector::DetectLandmarksInVideo(grayscale_image, face_models[model], det_parameters[model]);
 				}
 			});
 								
-			// Go through every model and visualise the results
-			for(size_t model = 0; model < clnf_models.size(); ++model)
+			// Keeping track of FPS
+			fps_tracker.AddFrame();
+
+			visualizer.SetImage(captured_image, sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy);
+
+			// Go through every model and detect eye gaze, record results and visualise the results
+			for(size_t model = 0; model < face_models.size(); ++model)
 			{
 				// Visualising the results
-				// Drawing the facial landmarks on the face and the bounding box around it if tracking is successful and initialised
-				double detection_certainty = clnf_models[model].detection_certainty;
-
-				double visualisation_boundary = -0.1;
-			
-				// Only draw if the reliability is reasonable, the value is slightly ad-hoc
-				if(detection_certainty < visualisation_boundary)
+				if(active_models[model])
 				{
-					LandmarkDetector::Draw(disp_image, clnf_models[model]);
 
-					if(detection_certainty > 1)
-						detection_certainty = 1;
-					if(detection_certainty < -1)
-						detection_certainty = -1;
+					// Estimate head pose and eye gaze				
+					cv::Vec6d pose_estimate = LandmarkDetector::GetPose(face_models[model], sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy);
 
-					detection_certainty = (detection_certainty + 1)/(visualisation_boundary +1);
+					cv::Point3f gaze_direction0(0, 0, 0); cv::Point3f gaze_direction1(0, 0, 0); cv::Vec2d gaze_angle(0, 0);
 
-					// A rough heuristic for box around the face width
-					int thickness = (int)std::ceil(2.0* ((double)captured_image.cols) / 640.0);
-					
-					// Work out the pose of the head from the tracked model
-					cv::Vec6d pose_estimate = LandmarkDetector::GetCorrectedPoseWorld(clnf_models[model], fx, fy, cx, cy);
-					
-					// Draw it in reddish if uncertain, blueish if certain
-					LandmarkDetector::DrawBox(disp_image, pose_estimate, cv::Scalar((1-detection_certainty)*255.0,0, detection_certainty*255), thickness, fx, fy, cx, cy);
+					// Detect eye gazes
+					if (face_models[model].detection_success && face_model.eye_model)
+					{
+						GazeAnalysis::EstimateGaze(face_models[model], gaze_direction0, sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy, true);
+						GazeAnalysis::EstimateGaze(face_models[model], gaze_direction1, sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy, false);
+						gaze_angle = GazeAnalysis::GetGazeAngle(gaze_direction0, gaze_direction1);
+					}
+
+					// Face analysis step
+					cv::Mat sim_warped_img;
+					cv::Mat_<double> hog_descriptor; int num_hog_rows = 0, num_hog_cols = 0;
+
+					// Perform AU detection and HOG feature extraction, as this can be expensive only compute it if needed by output or visualization
+					if (recording_params.outputAlignedFaces() || recording_params.outputHOG() || recording_params.outputAUs() || visualizer.vis_align || visualizer.vis_hog)
+					{
+						face_analyser.PredictStaticAUsAndComputeFeatures(captured_image, face_models[model].detected_landmarks);
+						face_analyser.GetLatestAlignedFace(sim_warped_img);
+						face_analyser.GetLatestHOG(hog_descriptor, num_hog_rows, num_hog_cols);
+					}
+
+					// Visualize the features
+					visualizer.SetObservationFaceAlign(sim_warped_img);
+					visualizer.SetObservationHOG(hog_descriptor, num_hog_rows, num_hog_cols);
+					visualizer.SetObservationLandmarks(face_models[model].detected_landmarks, face_models[model].detection_certainty);
+					visualizer.SetObservationPose(LandmarkDetector::GetPose(face_models[model], sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy), face_models[model].detection_certainty);
+					visualizer.SetObservationGaze(gaze_direction0, gaze_direction1, LandmarkDetector::CalculateAllEyeLandmarks(face_models[model]), LandmarkDetector::Calculate3DEyeLandmarks(face_models[model], sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy), face_models[model].detection_certainty);
+					visualizer.SetObservationActionUnits(face_analyser.GetCurrentAUsReg(), face_analyser.GetCurrentAUsClass());
+
+					// Output features
+					open_face_rec.SetObservationHOG(face_models[model].detection_success, hog_descriptor, num_hog_rows, num_hog_cols, 31); // The number of channels in HOG is fixed at the moment, as using FHOG
+					open_face_rec.SetObservationVisualization(visualizer.GetVisImage());
+					open_face_rec.SetObservationActionUnits(face_analyser.GetCurrentAUsReg(), face_analyser.GetCurrentAUsClass());
+					open_face_rec.SetObservationLandmarks(face_models[model].detected_landmarks, face_models[model].GetShape(sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy),
+						face_models[model].params_global, face_models[model].params_local, face_models[model].detection_certainty, face_models[model].detection_success);
+					open_face_rec.SetObservationPose(pose_estimate);
+					open_face_rec.SetObservationGaze(gaze_direction0, gaze_direction1, gaze_angle, LandmarkDetector::CalculateAllEyeLandmarks(face_models[model]), LandmarkDetector::Calculate3DEyeLandmarks(face_models[model], sequence_reader.fx, sequence_reader.fy, sequence_reader.cx, sequence_reader.cy));
+					open_face_rec.SetObservationFaceAlign(sim_warped_img);
+					open_face_rec.SetObservationFaceID(model);
+					open_face_rec.SetObservationTimestamp(sequence_reader.time_stamp);
+					open_face_rec.SetObservationFrameNumber(sequence_reader.GetFrameNumber());
+					open_face_rec.WriteObservation();
+
+
 				}
 			}
+			visualizer.SetFps(fps_tracker.GetFPS());
 
-			// Work out the framerate
-			if(frame_count % 10 == 0)
-			{      
-				t1 = cv::getTickCount();
-				fps = 10.0 / (double(t1-t0)/cv::getTickFrequency()); 
-				t0 = t1;
-			}
-			
-			// Write out the framerate on the image before displaying it
-			char fpsC[255];
-			sprintf(fpsC, "%d", (int)fps);
-			string fpsSt("FPS:");
-			fpsSt += fpsC;
-			cv::putText(disp_image, fpsSt, cv::Point(10,20), CV_FONT_HERSHEY_SIMPLEX, 0.5, CV_RGB(255,0,0), 1, CV_AA);
-			
-			int num_active_models = 0;
-
-			for( size_t active_model = 0; active_model < active_models.size(); active_model++)
-			{
-				if(active_models[active_model])
-				{
-					num_active_models++;
-				}
-			}
-
-			char active_m_C[255];
-			sprintf(active_m_C, "%d", num_active_models);
-			string active_models_st("Active models:");
-			active_models_st += active_m_C;
-			cv::putText(disp_image, active_models_st, cv::Point(10,60), CV_FONT_HERSHEY_SIMPLEX, 0.5, CV_RGB(255,0,0), 1, CV_AA);
-			
-			if(!det_parameters[0].quiet_mode)
-			{
-				cv::namedWindow("tracking_result",1);
-				cv::imshow("tracking_result", disp_image);
-
-				if(!depth_image.empty())
-				{
-					// Division needed for visualisation purposes
-					imshow("depth", depth_image/2000.0);
-				}
-			}
-
-			// output the tracked video
-			if(!tracked_videos_output.empty())
-			{		
-				writerFace << disp_image;
-			}
-
-			video_capture >> captured_image;
-		
-			// detect key presses
-			char character_press = cv::waitKey(1);
+			// show visualization and detect key presses
+			char character_press = visualizer.ShowObservation();
 			
 			// restart the trackers
 			if(character_press == 'r')
 			{
-				for(size_t i=0; i < clnf_models.size(); ++i)
+				for(size_t i=0; i < face_models.size(); ++i)
 				{
-					clnf_models[i].Reset();
+					face_models[i].Reset();
 					active_models[i] = false;
 				}
 			}
 			// quit the application
 			else if(character_press=='q')
 			{
-				return(0);
+				return 0;
 			}
 
 			// Update the frame count
 			frame_count++;
+
+			// Grabbing the next frame in the sequence
+			captured_image = sequence_reader.GetNextFrame();
+
 		}
 		
 		frame_count = 0;
 
 		// Reset the model, for the next video
-		for(size_t model=0; model < clnf_models.size(); ++model)
+		for(size_t model=0; model < face_models.size(); ++model)
 		{
-			clnf_models[model].Reset();
+			face_models[model].Reset();
 			active_models[model] = false;
 		}
 
-		// break out of the loop if done with all the files
-		if(f_n == files.size() -1)
-		{
-			done = true;
-		}
+		sequence_number++;
+
 	}
 
 	return 0;

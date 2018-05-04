@@ -30,7 +30,7 @@ for a=1:numel(aus)
     [users_train, users_valid] = get_balanced_fold(DISFA_dir, users, au, 1/3, 1);
 
     % need to split the rest
-    [train_samples, train_labels, valid_samples, valid_labels, ~, PC, means, scaling, valid_ids, valid_success] = Prepare_HOG_AU_data_generic_dynamic(users_train, users_valid, au, rest_aus, hog_data_dir);
+    [train_samples, train_labels, valid_samples, valid_labels, ~, PC, means, scaling, valid_ids, valid_success] = Prepare_HOG_AU_data_generic_dynamic(users_train, users_valid, au, rest_aus, DISFA_dir, hog_data_dir);
 
     train_labels(train_labels > 1) = 1;
     valid_labels(valid_labels > 1) = 1;
@@ -53,4 +53,14 @@ for a=1:numel(aus)
 
     save(name, 'model', 'accuracies', 'F1s', 'corrs', 'rms', 'ccc', 'prediction', 'valid_labels');        
 
+    name = sprintf('classifiers/AU_%d_dyn.dat', au);
+
+    pos_lbl = model.Label(1);
+    neg_lbl = model.Label(2);
+    
+    w = model.w(1:end-1)';
+    b = model.w(end);
+
+    svs = bsxfun(@times, PC, 1./scaling') * w;
+    write_lin_svm(name, means, svs, b, pos_lbl, neg_lbl);
 end
