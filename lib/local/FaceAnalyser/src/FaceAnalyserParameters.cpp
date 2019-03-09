@@ -13,22 +13,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -149,7 +149,7 @@ FaceAnalyserParameters::FaceAnalyserParameters(vector<string> &arguments):root()
 	}
 	else
 	{
-		std::cout << "Could not find the AU detection model to load" << std::endl;
+		std::cout << "Could not find the face analysis module to load" << std::endl;
 	}
 }
 
@@ -194,8 +194,14 @@ void FaceAnalyserParameters::setAlignedOutput(int output_size, double scale, boo
 {
 	this->sim_size_out = output_size;
 	// If we set the size but not the scale, adapt the scale to the right size
-	if (scale ==-1) this->sim_scale_out = sim_size_out * (0.7 / 112.0);
-	else this->sim_scale_out = sim_scale_out;
+	if (scale == -1)
+	{
+		this->sim_scale_out = sim_size_out * (0.7 / 112.0);
+	}
+	else
+	{
+		this->sim_scale_out = scale;
+	}
 
 	this->sim_align_face_mask = masked;
 
@@ -256,7 +262,7 @@ void FaceAnalyserParameters::OptimizeForImages()
 	}
 	else
 	{
-		std::cout << "Could not find the face analysis module to load" << std::endl;
+		std::cout << "Could not find the AU detection model to load" << std::endl;
 	}
 }
 

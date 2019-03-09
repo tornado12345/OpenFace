@@ -12,36 +12,40 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
 //
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
-//
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef __SEQUENCE_CAPTURE_h_
-#define __SEQUENCE_CAPTURE_h_
+#ifndef SEQUENCE_CAPTURE_H
+#define SEQUENCE_CAPTURE_H
 
 // System includes
 #include <fstream>
 #include <sstream>
 #include <vector>
 
+#include <thread>
+
 // OpenCV includes
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+
+#include <ConcurrentQueue.h>
 
 namespace Utilities
 {
@@ -85,7 +89,7 @@ namespace Utilities
 		// Parameters describing the sequence and it's progress
 		double GetProgress();
 
-		int GetFrameNumber() { return frame_num; }
+		size_t GetFrameNumber() { return frame_num; }
 
 		bool IsOpened();
 
@@ -106,8 +110,21 @@ namespace Utilities
 		// Allows to differentiate if failed because no input specified or if failed to open a specified input
 		bool no_input_specified;
 
+				// Storing the captured data queue
+		static const int CAPTURE_CAPACITY = 200; // 200 MB
 
 	private:
+
+		// For faster input, multi-thread the capture so it is not waiting for processing to be done
+
+		// Used to keep track if the recording is still going (for the writing threads)
+		bool capturing;
+
+		// For keeping track of tasks
+		std::thread capture_thread;
+
+		// A thread that will write video output, so that the rest of the application does not block on it
+		void CaptureThread();
 
 		// Blocking copy and move, as it doesn't make sense to have several readers pointed at the same source, and this would cause issues, especially with webcams
 		SequenceCapture & operator= (const SequenceCapture& other);
@@ -122,6 +139,9 @@ namespace Utilities
 		cv::Mat latest_frame;
 		cv::Mat_<uchar> latest_gray_frame;
 		
+		// Storing capture timestamp, RGB image, gray image
+		ConcurrentQueue<std::tuple<double, cv::Mat, cv::Mat_<uchar> > > capture_queue;
+
 		// Keeping track of frame number and the files in the image sequence
 		size_t  frame_num;
 		std::vector<std::string> image_files;
@@ -141,4 +161,4 @@ namespace Utilities
 
 	};
 }
-#endif
+#endif // SEQUENCE_CAPTURE_H

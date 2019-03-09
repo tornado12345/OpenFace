@@ -13,27 +13,27 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
 //
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
-//
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef __CCNF_PATCH_EXPERT_h_
-#define __CCNF_PATCH_EXPERT_h_
+#ifndef CCNF_PATCH_EXPERT_H
+#define CCNF_PATCH_EXPERT_H
 
 #include <opencv2/core/core.hpp>
 
@@ -51,7 +51,7 @@ class CCNF_neuron{
 
 public:
 
-	// Type of patch (0=raw,1=grad other types besides raw are not actually used now)
+	// Type of patch (0=raw,1=grad,3=depth, other types besides raw are not actually used now)
 	int     neuron_type; 
 
 	// scaling of weights (needed as the energy of neuron might not be 1) 
@@ -78,7 +78,7 @@ public:
 
 	void Read(std::ifstream &stream);
 	// The im_dft, integral_img, and integral_img_sq are precomputed images for convolution speedups (they get set if passed in empty values)
-	void Response(cv::Mat_<float> &im, cv::Mat_<double> &im_dft, cv::Mat &integral_img, cv::Mat &integral_img_sq, cv::Mat_<float> &resp);
+	void Response(const cv::Mat_<float> &im, cv::Mat_<double> &im_dft, cv::Mat &integral_img, cv::Mat &integral_img_sq, cv::Mat_<float> &resp);
 
 };
 
@@ -101,6 +101,9 @@ public:
 	std::vector<cv::Mat_<float> >	Sigmas;
 	std::vector<double>				betas;
 
+	// Combined weight matrix from each neuron
+	cv::Mat_<float> weight_matrix;
+
 	// How confident we are in the patch
 	double   patch_confidence;
 
@@ -112,8 +115,10 @@ public:
 
 	void Read(std::ifstream &stream, std::vector<int> window_sizes, std::vector<std::vector<cv::Mat_<float> > > sigma_components);
 
-	// actual work (can pass in an image)
-	void Response(cv::Mat_<float> &area_of_interest, cv::Mat_<float> &response);
+	// actual work (can pass in an image and a potential depth image, if the CCNF is trained with depth)
+	void Response(const cv::Mat_<float> &area_of_interest, cv::Mat_<float> &response);
+
+	void ResponseOpenBlas(const cv::Mat_<float> &area_of_interest, cv::Mat_<float> &response, cv::Mat_<float> &im2col_prealloc);
 
 	// Helper function to compute relevant sigmas
 	void ComputeSigmas(std::vector<cv::Mat_<float> > sigma_components, int window_size);
@@ -121,4 +126,4 @@ public:
 };
   //===========================================================================
 }
-#endif
+#endif // CCNF_PATCH_EXPERT_H

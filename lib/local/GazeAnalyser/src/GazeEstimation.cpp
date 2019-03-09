@@ -13,22 +13,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -76,11 +76,11 @@ cv::Point3f RaySphereIntersect(cv::Point3f rayOrigin, cv::Point3f rayDir, cv::Po
 	return rayOrigin + rayDir * t;
 }
 
-cv::Point3f GazeAnalysis::GetPupilPosition(cv::Mat_<double> eyeLdmks3d){
+cv::Point3f GazeAnalysis::GetPupilPosition(cv::Mat_<float> eyeLdmks3d){
 	
 	eyeLdmks3d = eyeLdmks3d.t();
 
-	cv::Mat_<double> irisLdmks3d = eyeLdmks3d.rowRange(0,8);
+	cv::Mat_<float> irisLdmks3d = eyeLdmks3d.rowRange(0,8);
 
 	cv::Point3f p (mean(irisLdmks3d.col(0))[0], mean(irisLdmks3d.col(1))[0], mean(irisLdmks3d.col(2))[0]);
 	return p;
@@ -88,9 +88,9 @@ cv::Point3f GazeAnalysis::GetPupilPosition(cv::Mat_<double> eyeLdmks3d){
 
 void GazeAnalysis::EstimateGaze(const LandmarkDetector::CLNF& clnf_model, cv::Point3f& gaze_absolute, float fx, float fy, float cx, float cy, bool left_eye)
 {
-	cv::Vec6d headPose = LandmarkDetector::GetPose(clnf_model, fx, fy, cx, cy);
-	cv::Vec3d eulerAngles(headPose(3), headPose(4), headPose(5));
-	cv::Matx33d rotMat = Utilities::Euler2RotationMatrix(eulerAngles);
+	cv::Vec6f headPose = LandmarkDetector::GetPose(clnf_model, fx, fy, cx, cy);
+	cv::Vec3f eulerAngles(headPose(3), headPose(4), headPose(5));
+	cv::Matx33f rotMat = Utilities::Euler2RotationMatrix(eulerAngles);
 
 	int part = -1;
 	for (size_t i = 0; i < clnf_model.hierarchical_models.size(); ++i)
@@ -108,6 +108,8 @@ void GazeAnalysis::EstimateGaze(const LandmarkDetector::CLNF& clnf_model, cv::Po
 	if (part == -1)
 	{
 		std::cout << "Couldn't find the eye model, something wrong" << std::endl;
+		gaze_absolute = cv::Point3f(0, 0, 0);
+		return;
 	}
 
 	cv::Mat eyeLdmks3d = clnf_model.hierarchical_models[part].GetShape(fx, fy, cx, cy);
@@ -118,7 +120,7 @@ void GazeAnalysis::EstimateGaze(const LandmarkDetector::CLNF& clnf_model, cv::Po
 	cv::Mat faceLdmks3d = clnf_model.GetShape(fx, fy, cx, cy);
 	faceLdmks3d = faceLdmks3d.t();
 
-	cv::Mat offset = (cv::Mat_<double>(3, 1) << 0, -3.5, 7.0);
+	cv::Mat offset = (cv::Mat_<float>(3, 1) << 0, -3.5, 7.0);
 
 	int eyeIdx = 1;
 	if (left_eye)
@@ -135,7 +137,7 @@ void GazeAnalysis::EstimateGaze(const LandmarkDetector::CLNF& clnf_model, cv::Po
 	gaze_absolute = gazeVecAxis / norm(gazeVecAxis);
 }
 
-cv::Vec2d GazeAnalysis::GetGazeAngle(cv::Point3f& gaze_vector_1, cv::Point3f& gaze_vector_2)
+cv::Vec2f GazeAnalysis::GetGazeAngle(cv::Point3f& gaze_vector_1, cv::Point3f& gaze_vector_2)
 {
 
 	cv::Point3f gaze_vector = (gaze_vector_1 + gaze_vector_2) / 2;
@@ -143,6 +145,6 @@ cv::Vec2d GazeAnalysis::GetGazeAngle(cv::Point3f& gaze_vector_1, cv::Point3f& ga
 	double x_angle = atan2(gaze_vector.x, -gaze_vector.z);
 	double y_angle = atan2(gaze_vector.y, -gaze_vector.z);
 
-	return cv::Vec2d(x_angle, y_angle);
+	return cv::Vec2f(x_angle, y_angle);
 
 }

@@ -12,27 +12,27 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
 //
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
-//
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef __VISUALIZER_h_
-#define __VISUALIZER_h_
+#ifndef VISUALIZER_H
+#define VISUALIZER_H
 
 // System includes
 #include <vector>
@@ -55,22 +55,22 @@ namespace Utilities
 		// The constructor for the visualizer that specifies what to visualize
 		Visualizer(std::vector<std::string> arguments);
 		Visualizer(bool vis_track, bool vis_hog, bool vis_align, bool vis_aus);
-		
+
 		// Adding observations to the visualizer
 		
 		// Pose related observations
 		void SetImage(const cv::Mat& canvas, float fx, float fy, float cx, float cy);
 
 		// All observations relevant to facial landmarks (optional visibilities parameter to not display all landmarks)
-		void SetObservationLandmarks(const cv::Mat_<double>& landmarks_2D, double confidence, const cv::Mat_<int>& visibilities = cv::Mat_<int>());
+		void SetObservationLandmarks(const cv::Mat_<float>& landmarks_2D, double confidence, const cv::Mat_<int>& visibilities = cv::Mat_<int>());
 
 		// Pose related observations
-		void SetObservationPose(const cv::Vec6d& pose, double confidence);
-
+		void SetObservationPose(const cv::Vec6f& pose, double confidence);
+		
 		void SetObservationActionUnits(const std::vector<std::pair<std::string, double> >& au_intensities, const std::vector<std::pair<std::string, double> >& au_occurences);
-	
+
 		// Gaze related observations
-		void SetObservationGaze(const cv::Point3f& gazeDirection0, const cv::Point3f& gazeDirection1, const std::vector<cv::Point2d>& eye_landmarks, const std::vector<cv::Point3d>& eye_landmarks3d, double confidence);
+		void SetObservationGaze(const cv::Point3f& gazeDirection0, const cv::Point3f& gazeDirection1, const std::vector<cv::Point2f>& eye_landmarks, const std::vector<cv::Point3f>& eye_landmarks3d, double confidence);
 
 		// Face alignment related observations
 		void SetObservationFaceAlign(const cv::Mat& aligned_face);
@@ -91,7 +91,7 @@ namespace Utilities
 		bool vis_hog;
 		bool vis_align;
 		bool vis_aus;
-		
+
 		// Can be adjusted to show less confident frames
 		double visualisation_boundary = 0.4;
 

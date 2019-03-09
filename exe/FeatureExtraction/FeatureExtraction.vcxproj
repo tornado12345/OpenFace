@@ -58,33 +58,29 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\..\lib\3rdParty\dlib\dlib.props" />
     <Import Project="..\..\lib\3rdParty\boost\boost_d.props" />
-    <Import Project="..\..\lib\3rdParty\tbb\tbb_d.props" />
-    <Import Project="..\..\lib\3rdParty\OpenBLAS\OpenBLAS.props" />
     <Import Project="..\..\lib\3rdParty\OpenCV3.4\openCV3.4.props" />
+    <Import Project="..\..\lib\3rdParty\OpenBLAS\OpenBLAS_x86.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\..\lib\3rdParty\dlib\dlib.props" />
     <Import Project="..\..\lib\3rdParty\boost\boost_d.props" />
-    <Import Project="..\..\lib\3rdParty\tbb\tbb_d.props" />
-    <Import Project="..\..\lib\3rdParty\OpenBLAS\OpenBLAS.props" />
     <Import Project="..\..\lib\3rdParty\OpenCV3.4\openCV3.4.props" />
+    <Import Project="..\..\lib\3rdParty\OpenBLAS\OpenBLAS_64.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\..\lib\3rdParty\boost\boost.props" />
     <Import Project="..\..\lib\3rdParty\dlib\dlib.props" />
-    <Import Project="..\..\lib\3rdParty\tbb\tbb.props" />
-    <Import Project="..\..\lib\3rdParty\OpenBLAS\OpenBLAS.props" />
     <Import Project="..\..\lib\3rdParty\OpenCV3.4\openCV3.4.props" />
+    <Import Project="..\..\lib\3rdParty\OpenBLAS\OpenBLAS_x86.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\..\lib\3rdParty\boost\boost.props" />
     <Import Project="..\..\lib\3rdParty\dlib\dlib.props" />
-    <Import Project="..\..\lib\3rdParty\tbb\tbb.props" />
-    <Import Project="..\..\lib\3rdParty\OpenBLAS\OpenBLAS.props" />
     <Import Project="..\..\lib\3rdParty\OpenCV3.4\openCV3.4.props" />
+    <Import Project="..\..\lib\3rdParty\OpenBLAS\OpenBLAS_64.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -129,7 +125,8 @@
       <PreprocessorDefinitions>WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\lib\local\FaceAnalyser\include;$(SolutionDir)\lib\local\LandmarkDetector\include;$(SolutionDir)\lib\local\GazeAnalyser\include;$(SolutionDir)\lib\local\Utilities\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OpenMPSupport>false</OpenMPSupport>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>
+      </EnableEnhancedInstructionSet>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -141,8 +138,9 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\lib\local\FaceAnalyser\include;$(SolutionDir)\lib\local\LandmarkDetector\include;$(SolutionDir)\lib\local\GazeAnalyser\include;$(SolutionDir)\lib\local\Utilities\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -164,16 +162,17 @@
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <Optimization>Full</Optimization>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
-      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\lib\local\FaceAnalyser\include;$(SolutionDir)\lib\local\LandmarkDetector\include;$(SolutionDir)\lib\local\GazeAnalyser\include;$(SolutionDir)\lib\local\Utilities\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OpenMPSupport>false</OpenMPSupport>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>
+      </EnableEnhancedInstructionSet>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

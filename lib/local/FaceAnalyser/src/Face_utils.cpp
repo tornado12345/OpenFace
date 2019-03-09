@@ -13,26 +13,28 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
 //
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
-//
 ///////////////////////////////////////////////////////////////////////////////
 
 #include <Face_utils.h>
+
+#include <RotationHelpers.h>
 
 // OpenCV includes
 #include <opencv2/core/core.hpp>
@@ -114,7 +116,7 @@ namespace FaceAnalysis
 	}
 
 	// Aligning a face to a common reference frame
-	void AlignFace(cv::Mat& aligned_face, const cv::Mat& frame, const cv::Mat_<float>& detected_landmarks, cv::Vec6f params_global, const PDM& pdm, bool rigid, float sim_scale, int out_width, int out_height)
+	void AlignFace(cv::Mat& aligned_face, const cv::Mat& frame, const cv::Mat_<float>& detected_landmarks, cv::Vec6f params_global, const LandmarkDetector::PDM& pdm, bool rigid, double sim_scale, int out_width, int out_height)
 	{
 		// Will warp to scaled mean shape
 		cv::Mat_<float> similarity_normalised_shape = pdm.mean_shape * sim_scale;
@@ -131,7 +133,7 @@ namespace FaceAnalysis
 			extract_rigid_points(source_landmarks, destination_landmarks);
 		}
 
-		cv::Matx22f scale_rot_matrix = AlignShapesWithScale(source_landmarks, destination_landmarks);
+		cv::Matx22f scale_rot_matrix = Utilities::AlignShapesWithScale(source_landmarks, destination_landmarks);
 		cv::Matx23f warp_matrix;
 
 		warp_matrix(0,0) = scale_rot_matrix(0,0);
@@ -153,7 +155,7 @@ namespace FaceAnalysis
 	}
 
 	// Aligning a face to a common reference frame
-	void AlignFaceMask(cv::Mat& aligned_face, const cv::Mat& frame, const cv::Mat_<float>& detected_landmarks, cv::Vec6f params_global, const PDM& pdm, const cv::Mat_<int>& triangulation, bool rigid, float sim_scale, int out_width, int out_height)
+	void AlignFaceMask(cv::Mat& aligned_face, const cv::Mat& frame, const cv::Mat_<float>& detected_landmarks, cv::Vec6f params_global, const LandmarkDetector::PDM& pdm, const cv::Mat_<int>& triangulation, bool rigid, double sim_scale, int out_width, int out_height)
 	{
 		// Will warp to scaled mean shape
 		cv::Mat_<float> similarity_normalised_shape = pdm.mean_shape * sim_scale;
@@ -170,7 +172,7 @@ namespace FaceAnalysis
 			extract_rigid_points(source_landmarks, destination_landmarks);
 		}
 
-		cv::Matx22f scale_rot_matrix = AlignShapesWithScale(source_landmarks, destination_landmarks);
+		cv::Matx22f scale_rot_matrix = Utilities::AlignShapesWithScale(source_landmarks, destination_landmarks);
 		cv::Matx23f warp_matrix;
 
 		warp_matrix(0,0) = scale_rot_matrix(0,0);
@@ -215,7 +217,7 @@ namespace FaceAnalysis
 
 		destination_landmarks = cv::Mat(destination_landmarks.t()).reshape(1, 1).t();
 
-		FaceAnalysis::PAW paw(destination_landmarks, triangulation, 0, 0, aligned_face.cols-1, aligned_face.rows-1);
+		LandmarkDetector::PAW paw(destination_landmarks, triangulation, 0, 0, aligned_face.cols-1, aligned_face.rows-1);
 		
 		// Mask each of the channels (a bit of a roundabout way, but OpenCV 3.1 in debug mode doesn't seem to be able to handle a more direct way using split and merge)
 		vector<cv::Mat> aligned_face_channels(aligned_face.channels());
@@ -332,134 +334,6 @@ namespace FaceAnalysis
 
 		new_descriptor.copyTo(descriptors.row(row_to_change));
 	}	
-
-	//===========================================================================
-	// Point set and landmark manipulation functions
-	//===========================================================================
-	// Using Kabsch's algorithm for aligning shapes
-	//This assumes that align_from and align_to are already mean normalised
-	cv::Matx22f AlignShapesKabsch2D(const cv::Mat_<float>& align_from, const cv::Mat_<float>& align_to)
-	{
-
-		cv::SVD svd(align_from.t() * align_to);
-
-		// make sure no reflection is there
-		// corr ensures that we do only rotaitons and not reflections
-		float d = cv::determinant(svd.vt.t() * svd.u.t());
-
-		cv::Matx22f corr = cv::Matx22f::eye();
-		if (d > 0)
-		{
-			corr(1, 1) = 1;
-		}
-		else
-		{
-			corr(1, 1) = -1;
-		}
-
-		cv::Matx22f R;
-		cv::Mat(svd.vt.t()*cv::Mat(corr)*svd.u.t()).copyTo(R);
-
-		return R;
-	}
-
-	//=============================================================================
-	// Basically Kabsch's algorithm but also allows the collection of points to be different in scale from each other
-	cv::Matx22f AlignShapesWithScale(cv::Mat_<float>& src, cv::Mat_<float> dst)
-	{
-		int n = src.rows;
-
-		// First we mean normalise both src and dst
-		float mean_src_x = cv::mean(src.col(0))[0];
-		float mean_src_y = cv::mean(src.col(1))[0];
-
-		float mean_dst_x = cv::mean(dst.col(0))[0];
-		float mean_dst_y = cv::mean(dst.col(1))[0];
-
-		cv::Mat_<float> src_mean_normed = src.clone();
-		src_mean_normed.col(0) = src_mean_normed.col(0) - mean_src_x;
-		src_mean_normed.col(1) = src_mean_normed.col(1) - mean_src_y;
-
-		cv::Mat_<float> dst_mean_normed = dst.clone();
-		dst_mean_normed.col(0) = dst_mean_normed.col(0) - mean_dst_x;
-		dst_mean_normed.col(1) = dst_mean_normed.col(1) - mean_dst_y;
-
-		// Find the scaling factor of each
-		cv::Mat src_sq;
-		cv::pow(src_mean_normed, 2, src_sq);
-
-		cv::Mat dst_sq;
-		cv::pow(dst_mean_normed, 2, dst_sq);
-
-		float s_src = sqrt(cv::sum(src_sq)[0] / n);
-		float s_dst = sqrt(cv::sum(dst_sq)[0] / n);
-
-		src_mean_normed = src_mean_normed / s_src;
-		dst_mean_normed = dst_mean_normed / s_dst;
-
-		float s = s_dst / s_src;
-
-		// Get the rotation
-		cv::Matx22f R = AlignShapesKabsch2D(src_mean_normed, dst_mean_normed);
-
-		cv::Matx22f	A;
-		cv::Mat(s * R).copyTo(A);
-
-		cv::Mat_<float> aligned = (cv::Mat(cv::Mat(A) * src.t())).t();
-		cv::Mat_<float> offset = dst - aligned;
-
-		float t_x = cv::mean(offset.col(0))[0];
-		float t_y = cv::mean(offset.col(1))[0];
-
-		return A;
-
-	}
-
-
-	//===========================================================================
-	// Visualisation functions, TODO rem
-	//===========================================================================
-	void Project(cv::Mat_<float>& dest, const cv::Mat_<float>& mesh, float fx, float fy, float cx, float cy)
-	{
-		dest = cv::Mat_<float>(mesh.rows, 2, 0.0);
-
-		int num_points = mesh.rows;
-
-		float X, Y, Z;
-
-
-		cv::Mat_<float>::const_iterator mData = mesh.begin();
-		cv::Mat_<float>::iterator projected = dest.begin();
-
-		for (int i = 0; i < num_points; i++)
-		{
-			// Get the points
-			X = *(mData++);
-			Y = *(mData++);
-			Z = *(mData++);
-
-			float x;
-			float y;
-
-			// if depth is 0 the projection is different
-			if (Z != 0)
-			{
-				x = ((X * fx / Z) + cx);
-				y = ((Y * fy / Z) + cy);
-			}
-			else
-			{
-				x = X;
-				y = Y;
-			}
-
-			// Project and store in dest matrix
-			(*projected++) = x;
-			(*projected++) = y;
-		}
-
-	}
-
 
 	//============================================================================
 	// Matrix reading functionality

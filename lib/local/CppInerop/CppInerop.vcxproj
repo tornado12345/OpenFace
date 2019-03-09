@@ -64,33 +64,29 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\..\3rdParty\dlib\dlib.props" />
     <Import Project="..\..\3rdParty\boost\boost_d.props" />
-    <Import Project="..\..\3rdParty\tbb\tbb_d.props" />
-    <Import Project="..\..\3rdParty\OpenBLAS\OpenBLAS.props" />
     <Import Project="..\..\3rdParty\OpenCV3.4\openCV3.4.props" />
+    <Import Project="..\..\3rdParty\OpenBLAS\OpenBLAS_x86.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\..\3rdParty\dlib\dlib.props" />
     <Import Project="..\..\3rdParty\boost\boost.props" />
-    <Import Project="..\..\3rdParty\tbb\tbb.props" />
-    <Import Project="..\..\3rdParty\OpenBLAS\OpenBLAS.props" />
     <Import Project="..\..\3rdParty\OpenCV3.4\openCV3.4.props" />
+    <Import Project="..\..\3rdParty\OpenBLAS\OpenBLAS_x86.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\..\3rdParty\dlib\dlib.props" />
     <Import Project="..\..\3rdParty\boost\boost_d.props" />
-    <Import Project="..\..\3rdParty\tbb\tbb_d.props" />
-    <Import Project="..\..\3rdParty\OpenBLAS\OpenBLAS.props" />
     <Import Project="..\..\3rdParty\OpenCV3.4\openCV3.4.props" />
+    <Import Project="..\..\3rdParty\OpenBLAS\OpenBLAS_64.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\..\3rdParty\dlib\dlib.props" />
     <Import Project="..\..\3rdParty\boost\boost.props" />
-    <Import Project="..\..\3rdParty\tbb\tbb.props" />
-    <Import Project="..\..\3rdParty\OpenBLAS\OpenBLAS.props" />
     <Import Project="..\..\3rdParty\OpenCV3.4\openCV3.4.props" />
+    <Import Project="..\..\3rdParty\OpenBLAS\OpenBLAS_64.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -113,6 +109,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;CPPINEROP_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>./;$(SolutionDir)lib\local\LandmarkDetector\include;$(SolutionDir)lib\local\FaceAnalyser\include;$(SolutionDir)lib\local\GazeAnalyser\include;$(SolutionDir)lib\local\Utilities\include;$(SolutionDir)lib\3rdParty\CameraEnumerator;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -127,6 +124,8 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;_USRDLL;CPPINEROP_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>./;$(SolutionDir)lib\local\LandmarkDetector\include;$(SolutionDir)lib\local\FaceAnalyser\include;$(SolutionDir)lib\local\GazeAnalyser\include;$(SolutionDir)lib\local\Utilities\include;$(SolutionDir)lib\3rdParty\CameraEnumerator;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>
+      </EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -138,11 +137,14 @@
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;CPPINEROP_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>./;$(SolutionDir)lib\local\LandmarkDetector\include;$(SolutionDir)lib\local\FaceAnalyser\include;$(SolutionDir)lib\local\GazeAnalyser\include;$(SolutionDir)lib\local\Utilities\include;$(SolutionDir)lib\3rdParty\CameraEnumerator;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -156,11 +158,15 @@
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;CPPINEROP_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>./;$(SolutionDir)lib\local\LandmarkDetector\include;$(SolutionDir)lib\local\FaceAnalyser\include;$(SolutionDir)lib\local\GazeAnalyser\include;$(SolutionDir)lib\local\Utilities\include;$(SolutionDir)lib\3rdParty\CameraEnumerator;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <EnableEnhancedInstructionSet>
+      </EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -187,9 +193,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\3rdParty\CameraEnumerator\CameraEnumerator.vcxproj">
       <Project>{50b7d4bf-e33b-41d0-aa89-76bba57bf5cc}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\3rdParty\dlib\dlib.vcxproj">
-      <Project>{b47a5f12-2567-44e9-ae49-35763ec82149}</Project>
     </ProjectReference>
     <ProjectReference Include="..\FaceAnalyser\FaceAnalyser.vcxproj">
       <Project>{0e7fc556-0e80-45ea-a876-dde4c2fedcd7}</Project>

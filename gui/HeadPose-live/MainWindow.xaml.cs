@@ -13,22 +13,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +48,7 @@ using CppInterop;
 using CppInterop.LandmarkDetector;
 using System.Windows.Threading;
 using GazeAnalyser_Interop;
+using FaceDetectorInterop;
 
 using ZeroMQ;
 using System.Drawing;
@@ -112,7 +113,7 @@ namespace HeadPoseLive
 
         System.IO.StreamWriter recording_success_file = null;
 
-        ConcurrentQueue<Tuple<RawImage, bool, List<double>>> recording_objects;
+        ConcurrentQueue<Tuple<RawImage, bool, List<float>>> recording_objects;
 
         // For broadcasting the results
         ZeroMQ.ZContext zero_mq_context;
@@ -194,7 +195,7 @@ namespace HeadPoseLive
             InitializeComponent();
 
             DateTime now = DateTime.Now;
-            
+
             // Set the icon
             Uri iconUri = new Uri("logo1.ico", UriKind.RelativeOrAbsolute);
             this.Icon = BitmapFrame.Create(iconUri);
@@ -282,9 +283,9 @@ namespace HeadPoseLive
 
         }
 
-        private bool ProcessFrame(CLNF landmark_detector, GazeAnalyserManaged gaze_analyser, FaceModelParameters model_params, RawImage frame, RawImage grayscale_frame, double fx, double fy, double cx, double cy)
+        private bool ProcessFrame(CLNF landmark_detector, GazeAnalyserManaged gaze_analyser, FaceModelParameters model_params, RawImage frame, RawImage grayscale_frame, float fx, float fy, float cx, float cy)
         {
-            bool detection_succeeding = landmark_detector.DetectLandmarksInVideo(grayscale_frame, model_params);
+            bool detection_succeeding = landmark_detector.DetectLandmarksInVideo(frame, model_params, grayscale_frame);
             gaze_analyser.AddNextFrame(landmark_detector, detection_succeeding, fx, fy, cx, cy);
             return detection_succeeding;
 
@@ -320,7 +321,7 @@ namespace HeadPoseLive
 
             while (recording)
             {
-                Tuple<RawImage, bool, List<double>> recording_object;
+                Tuple<RawImage, bool, List<float>> recording_object;
                 if (recording_objects.TryDequeue(out recording_object))
                 {
 
@@ -369,7 +370,17 @@ namespace HeadPoseLive
             Thread.CurrentThread.IsBackground = true;
 
             String root = AppDomain.CurrentDomain.BaseDirectory;
-            FaceModelParameters model_params = new FaceModelParameters(root, false);
+            FaceModelParameters model_params = new FaceModelParameters(root, true, false, false);
+
+            // Initialize the face detector
+            FaceDetector face_detector = new FaceDetector(model_params.GetHaarLocation(), model_params.GetMTCNNLocation());
+
+            // If MTCNN model not available, use HOG
+            if (!face_detector.IsMTCNNLoaded())
+            {
+                model_params.SetFaceDetector(false, true, false);
+            }
+
             CLNF face_model = new CLNF(model_params);
             GazeAnalyserManaged gaze_analyser = new GazeAnalyserManaged();
 
@@ -404,24 +415,24 @@ namespace HeadPoseLive
                     if (recording)
                     {
                         // Add objects to recording queues
-                        List<double> pose = new List<double>();
+                        List<float> pose = new List<float>();
                         face_model.GetPose(pose, reader.GetFx(), reader.GetFy(), reader.GetCx(), reader.GetCy());
-                        RawImage image = new RawImage(frame);
-                        recording_objects.Enqueue(new Tuple<RawImage, bool, List<double>>(image, detectionSucceeding, pose));
+                        recording_objects.Enqueue(new Tuple<RawImage, bool, List<float>>(frame, detectionSucceeding, pose));
 
                     }
                 }
 
                 List<Tuple<System.Windows.Point, System.Windows.Point>> lines = null;
-                List<Tuple<double, double>> eye_landmarks = null;
+                List<Tuple<float, float>> eye_landmarks = null;
                 List<System.Windows.Point> landmarks = new List<System.Windows.Point>();
                 List<Tuple<System.Windows.Point, System.Windows.Point>> gaze_lines = null;
-                Tuple<double, double> gaze_angle = new Tuple<double, double>(0, 0);
+                Tuple<float, float> gaze_angle = new Tuple<float, float>(0, 0);
+                var visibilities = face_model.GetVisibilities();
                 double scale = face_model.GetRigidParams()[0];
 
                 if (detectionSucceeding)
                 {
-                    List<Tuple<double, double>> landmarks_doubles = face_model.CalculateVisibleLandmarks();
+                    List<Tuple<float, float>> landmarks_doubles = face_model.CalculateAllLandmarks();
 
                     foreach (var p in landmarks_doubles)
                         landmarks.Add(new System.Windows.Point(p.Item1, p.Item2));
@@ -448,7 +459,7 @@ namespace HeadPoseLive
                         if (latest_img == null)
                             latest_img = frame.CreateWriteableBitmap();
 
-                        List<double> pose = new List<double>();
+                        List<float> pose = new List<float>();
                         face_model.GetPose(pose, reader.GetFx(), reader.GetFy(), reader.GetCx(), reader.GetCy());
 
                         int yaw = (int)(pose[4] * 180 / Math.PI + 0.5);
@@ -516,22 +527,17 @@ namespace HeadPoseLive
                             confidence = 1;
 
                         frame.UpdateWriteableBitmap(latest_img);
+                        webcam_img.Clear();
 
                         webcam_img.Source = latest_img;
-                        webcam_img.Confidence = confidence;
+                        webcam_img.Confidence.Add(confidence);
                         webcam_img.FPS = processing_fps.GetFPS();
-                        if (!detectionSucceeding)
+                        if(detectionSucceeding)
                         {
-                            webcam_img.OverlayLines.Clear();
-                            webcam_img.OverlayPoints.Clear();
-                            webcam_img.OverlayEyePoints.Clear();
-                            webcam_img.GazeLines.Clear();
-                        }
-                        else
-                        {
-                            webcam_img.OverlayLines = lines;
-                            webcam_img.OverlayPoints = landmarks;
-                            webcam_img.FaceScale = scale;
+                            webcam_img.OverlayLines.Add(lines);
+                            webcam_img.OverlayPoints.Add(landmarks);
+                            webcam_img.OverlayPointsVisibility.Add(visibilities);
+                            webcam_img.FaceScale.Add(scale);
 
                             List<System.Windows.Point> eye_landmark_points = new List<System.Windows.Point>();
                             foreach (var p in eye_landmarks)
@@ -540,8 +546,8 @@ namespace HeadPoseLive
                             }
 
 
-                            webcam_img.OverlayEyePoints = eye_landmark_points;
-                            webcam_img.GazeLines = gaze_lines;
+                            webcam_img.OverlayEyePoints.Add(eye_landmark_points);
+                            webcam_img.GazeLines.Add(gaze_lines);
 
                             // Publish the information for other applications
                             String str_head_pose = String.Format("{0}:{1:F2}, {2:F2}, {3:F2}, {4:F2}, {5:F2}, {6:F2}", "HeadPose", pose[0], pose[1], pose[2],
@@ -580,7 +586,7 @@ namespace HeadPoseLive
                 CompleteButton.IsEnabled = false;
                 PauseButton.IsEnabled = false;
 
-                recording_objects = new ConcurrentQueue<Tuple<RawImage, bool, List<double>>>();
+                recording_objects = new ConcurrentQueue<Tuple<RawImage, bool, List<float>>>();
 
                 recording = true;
 
@@ -716,23 +722,25 @@ namespace HeadPoseLive
                 PauseButton.Content = "Pause";
             }
         }
-
+       
         private void ScreenshotButton_Click(object sender, RoutedEventArgs e)
         {
 
-            int Top = (int)this.Top;
-            int Left = (int)this.Left;
+            PresentationSource source = PresentationSource.FromVisual(Application.Current.MainWindow);
 
-            int Width = (int)this.Width;
-            int Height = (int)this.Height;
+            var topLeft = source.CompositionTarget.TransformToDevice.Transform(new System.Windows.Point(this.Left, this.Top));
+            var bottomRight = source.CompositionTarget.TransformToDevice.Transform(new System.Windows.Point(this.Left + this.Width, this.Top + this.Height));
+
+            int Width = (int)(bottomRight.X - topLeft.X);
+            int Height = (int)(bottomRight.Y - topLeft.Y);
 
             using (Bitmap bmpScreenCapture = new Bitmap(Width,
                                                         Height))
             {
                 using (System.Drawing.Graphics g = Graphics.FromImage(bmpScreenCapture))
                 {
-                    g.CopyFromScreen(Left,
-                                     Top,
+                    g.CopyFromScreen((int)(topLeft.X),
+                                     (int)(topLeft.Y),
                                      0, 0,
                                      bmpScreenCapture.Size,
                                      CopyPixelOperation.SourceCopy);

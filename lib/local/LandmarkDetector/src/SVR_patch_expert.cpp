@@ -13,22 +13,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas BaltruÅ¡aitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. BaltruÅ¡aitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
-//       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
+//       Erroll Wood, Tadas BaltruÅ¡aitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
-//       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
+//       Tadas BaltruÅ¡aitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -179,7 +179,7 @@ void SVR_patch_expert::Response(const cv::Mat_<float>& area_of_interest, cv::Mat
 	cv::Mat_<float> empty_matrix_2(0,0,0.0);
 
 	// Efficient calc of patch expert SVR response across the area of interest
-	matchTemplate_m(normalised_area_of_interest, empty_matrix_0, empty_matrix_1, empty_matrix_2, weights, weights_dfts, svr_response, CV_TM_CCOEFF_NORMED); 
+	matchTemplate_m(normalised_area_of_interest, empty_matrix_0, empty_matrix_1, empty_matrix_2, weights, weights_dfts, svr_response, cv::TM_CCOEFF_NORMED);
 	
 	response.create(svr_response.size());
 	cv::MatIterator_<float> p = response.begin();
@@ -193,6 +193,72 @@ void SVR_patch_expert::Response(const cv::Mat_<float>& area_of_interest, cv::Mat
 		*p++ = 1.0/(1.0 + exp( -(*q1++ * scaling + bias )));
 	}
 
+}
+
+void SVR_patch_expert::ResponseDepth(const cv::Mat_<float>& area_of_interest, cv::Mat_<float> &response)
+{
+
+	// How big the response map will be
+	int response_height = area_of_interest.rows - weights.rows + 1;
+	int response_width = area_of_interest.cols - weights.cols + 1;
+	
+	// the patch area on which we will calculate reponses
+	cv::Mat_<float> normalised_area_of_interest;
+  
+	if(response.rows != response_height || response.cols != response_width)
+	{
+		response.create(response_height, response_width);
+	}
+
+	if(type == 0)
+	{
+		// Perform normalisation across whole patch
+		cv::Scalar mean;
+		cv::Scalar std;
+		
+		// ignore missing values
+		cv::Mat_<uchar> mask = area_of_interest > 0;
+		cv::meanStdDev(area_of_interest, mean, std, mask);
+
+		// if all values the same don't divide by 0
+		if(std[0] == 0)
+		{
+			std[0] = 1;
+		}
+
+		normalised_area_of_interest = (area_of_interest - mean[0]) / std[0];
+
+		// Set the invalid pixels to 0
+		normalised_area_of_interest.setTo(0, mask == 0);
+	}
+	else
+	{
+		printf("ERROR(%s,%d): Unsupported patch type %d!\n", __FILE__,__LINE__,type);
+		abort();
+	}
+  
+	cv::Mat_<float> svr_response;
+		
+	// The empty matrix as we don't pass precomputed dft's of image
+	cv::Mat_<double> empty_matrix_0(0,0,0.0);
+	cv::Mat_<float> empty_matrix_1(0,0,0.0);
+	cv::Mat_<float> empty_matrix_2(0,0,0.0);
+
+	// Efficient calc of patch expert response across the area of interest
+
+	matchTemplate_m(normalised_area_of_interest, empty_matrix_0, empty_matrix_1, empty_matrix_2, weights, weights_dfts, svr_response, cv::TM_CCOEFF);
+	
+	response.create(svr_response.size());
+	cv::MatIterator_<float> p = response.begin();
+
+	cv::MatIterator_<float> q1 = svr_response.begin(); // respone for each pixel
+	cv::MatIterator_<float> q2 = svr_response.end();
+
+	while(q1 != q2)
+	{
+		// the SVR response passed through a logistic regressor
+		*p++ = 1.0/(1.0 + exp( -(*q1++ * scaling + bias )));
+	}	
 }
 
 // Copy constructor				
@@ -255,3 +321,17 @@ void Multi_SVR_patch_expert::Response(const cv::Mat_<float> &area_of_interest, c
 
 }
 
+void Multi_SVR_patch_expert::ResponseDepth(const cv::Mat_<float>& area_of_interest, cv::Mat_<float>& response)
+{
+	int response_height = area_of_interest.rows - height + 1;
+	int response_width = area_of_interest.cols - width + 1;
+
+	if(response.rows != response_height || response.cols != response_width)
+	{
+		response.create(response_height, response_width);
+	}
+	
+	// With depth patch experts only do raw data modality
+	svr_patch_experts[0].ResponseDepth(area_of_interest, response);
+}
+//===========================================================================

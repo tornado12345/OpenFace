@@ -12,22 +12,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas BaltruÅ¡aitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. BaltruÅ¡aitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
-//       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
+//       Erroll Wood, Tadas BaltruÅ¡aitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
-//       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
+//       Tadas BaltruÅ¡aitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -232,16 +232,16 @@ bool SequenceCapture::OpenWebcam(int device, int image_width, int image_height, 
 	latest_gray_frame = cv::Mat();
 
 	capture.open(device);
-	capture.set(CV_CAP_PROP_FRAME_WIDTH, image_width);
-	capture.set(CV_CAP_PROP_FRAME_HEIGHT, image_height);
+	capture.set(cv::CAP_PROP_FRAME_WIDTH, image_width);
+	capture.set(cv::CAP_PROP_FRAME_HEIGHT, image_height);
 
 	is_webcam = true;
 	is_image_seq = false;
 
 	vid_length = 0;
 
-	this->frame_width = (int)capture.get(CV_CAP_PROP_FRAME_WIDTH);
-	this->frame_height = (int)capture.get(CV_CAP_PROP_FRAME_HEIGHT);
+	this->frame_width = (int)capture.get(cv::CAP_PROP_FRAME_WIDTH);
+	this->frame_height = (int)capture.get(cv::CAP_PROP_FRAME_HEIGHT);
 
 	if (!capture.isOpened())
 	{
@@ -254,7 +254,7 @@ bool SequenceCapture::OpenWebcam(int device, int image_width, int image_height, 
 		std::cout << "Defaulting to " << frame_width << "x" << frame_height << std::endl;
 	}
 
-	this->fps = capture.get(CV_CAP_PROP_FPS);
+	this->fps = capture.get(cv::CAP_PROP_FPS);
 
 	// Check if fps is nan or less than 0
 	if (fps != fps || fps <= 0)
@@ -262,12 +262,13 @@ bool SequenceCapture::OpenWebcam(int device, int image_width, int image_height, 
 		INFO_STREAM("FPS of the webcam cannot be determined, assuming 30");
 		fps = 30;
 	}
-
+	
 	SetCameraIntrinsics(fx, fy, cx, cy);
 	std::string time = currentDateTime();
 	this->name = "webcam_" + time;
 
 	start_time = cv::getTickCount();
+	capturing = true;
 
 	return true;
 
@@ -275,15 +276,28 @@ bool SequenceCapture::OpenWebcam(int device, int image_width, int image_height, 
 
 void SequenceCapture::Close()
 {
+	// Close the capturing threads
+	capturing = false;
+
+	// If the queue is full it will be blocked, so need to empty it
+	while (!capture_queue.empty())
+	{
+		capture_queue.pop();
+	}
+
+	if (capture_thread.joinable())
+		capture_thread.join();
+	
+	// Release the capture objects
 	if (capture.isOpened())
 		capture.release();
+
 }
 
 // Destructor that releases the capture
 SequenceCapture::~SequenceCapture()
 {
-	if (capture.isOpened())
-		capture.release();
+	Close();
 }
 
 bool SequenceCapture::OpenVideoFile(std::string video_file, float fx, float fy, float cx, float cy)
@@ -305,7 +319,7 @@ bool SequenceCapture::OpenVideoFile(std::string video_file, float fx, float fy, 
 		return false;
 	}
 
-	this->fps = capture.get(CV_CAP_PROP_FPS);
+	this->fps = capture.get(cv::CAP_PROP_FPS);
 	
 	// Check if fps is nan or less than 0
 	if (fps != fps || fps <= 0)
@@ -317,14 +331,17 @@ bool SequenceCapture::OpenVideoFile(std::string video_file, float fx, float fy, 
 	is_webcam = false;
 	is_image_seq = false;
 	
-	this->frame_width = (int)capture.get(CV_CAP_PROP_FRAME_WIDTH);
-	this->frame_height = (int)capture.get(CV_CAP_PROP_FRAME_HEIGHT);
+	this->frame_width = (int)capture.get(cv::CAP_PROP_FRAME_WIDTH);
+	this->frame_height = (int)capture.get(cv::CAP_PROP_FRAME_HEIGHT);
 
-	vid_length = (int)capture.get(CV_CAP_PROP_FRAME_COUNT);
+	vid_length = (int)capture.get(cv::CAP_PROP_FRAME_COUNT);
 
 	SetCameraIntrinsics(fx, fy, cx, cy);
 
 	this->name = video_file;
+	capturing = true;
+
+	capture_thread = std::thread(&SequenceCapture::CaptureThread, this);
 
 	return true;
 
@@ -341,6 +358,13 @@ bool SequenceCapture::OpenImageSequence(std::string directory, float fx, float f
 	image_files.clear();
 
 	boost::filesystem::path image_directory(directory);
+
+	if (!boost::filesystem::exists(image_directory))
+	{
+		std::cout << "Provided directory does not exist: " << directory << std::endl;
+		return false;
+	}
+
 	std::vector<boost::filesystem::path> file_in_directory;
 	copy(boost::filesystem::directory_iterator(image_directory), boost::filesystem::directory_iterator(), back_inserter(file_in_directory));
 
@@ -367,7 +391,7 @@ bool SequenceCapture::OpenImageSequence(std::string directory, float fx, float f
 	}
 
 	// Assume all images are same size in an image sequence
-	cv::Mat tmp = cv::imread(image_files[0], CV_LOAD_IMAGE_COLOR);
+	cv::Mat tmp = cv::imread(image_files[0], cv::IMREAD_COLOR);
 	this->frame_height = tmp.size().height;
 	this->frame_width = tmp.size().width;
 
@@ -381,7 +405,10 @@ bool SequenceCapture::OpenImageSequence(std::string directory, float fx, float f
 	is_webcam = false;
 	is_image_seq = true;	
 	vid_length = image_files.size();
+	capturing = true;
 
+	capture_thread = std::thread(&SequenceCapture::CaptureThread, this);
+	
 	return true;
 
 }
@@ -415,48 +442,86 @@ void SequenceCapture::SetCameraIntrinsics(float fx, float fy, float cx, float cy
 	}
 }
 
+void SequenceCapture::CaptureThread()
+{
+	int capacity = (CAPTURE_CAPACITY * 1024 * 1024) / (4 * frame_width * frame_height);
+	capture_queue.set_capacity(capacity);
+
+	int frame_num_int = 0;
+
+	while(capturing)
+	{
+		double timestamp_curr = 0;
+		cv::Mat tmp_frame;
+		cv::Mat_<uchar> tmp_gray_frame;
+
+		if (!is_image_seq)
+		{
+			bool success = capture.read(tmp_frame);
+
+			if (!success)
+			{
+				// Indicate lack of success by returning an empty image
+				tmp_frame = cv::Mat();
+				capturing = false;
+			}
+
+			// Recording the timestamp
+			timestamp_curr = frame_num_int * (1.0 / fps);			
+		}
+		else if (is_image_seq)
+		{
+			if (image_files.empty() || frame_num_int >= (int)image_files.size())
+			{
+				// Indicate lack of success by returning an empty image
+				tmp_frame = cv::Mat();
+				capturing = false;
+			}
+			else
+			{
+				tmp_frame = cv::imread(image_files[frame_num_int], cv::IMREAD_COLOR);
+			}
+			timestamp_curr = 0;
+		}
+
+		frame_num_int++;
+		// Set the grayscale frame
+		ConvertToGrayscale_8bit(tmp_frame, tmp_gray_frame);
+
+		capture_queue.push(std::make_tuple(timestamp_curr, tmp_frame, tmp_gray_frame));
+		
+	}
+}
+
 cv::Mat SequenceCapture::GetNextFrame()
 {
-
-	if (is_webcam || !is_image_seq)
+	if(!is_webcam)
 	{
+		std::tuple<double, cv::Mat, cv::Mat_<uchar> > data;
 
+		data = capture_queue.pop();
+
+		time_stamp = std::get<0>(data);
+		latest_frame = std::get<1>(data);
+		latest_gray_frame = std::get<2>(data);
+
+	}
+	else
+	{
+		// Webcam does not use the threaded interface
 		bool success = capture.read(latest_frame);
+
+		time_stamp = (cv::getTickCount() - start_time) / cv::getTickFrequency();
 
 		if (!success)
 		{
 			// Indicate lack of success by returning an empty image
 			latest_frame = cv::Mat();
 		}
-
-		// Recording the timestamp
-		if (!is_webcam)
-		{
-			time_stamp = frame_num * (1.0 / fps);
-		}
-		else
-		{
-			time_stamp = (cv::getTickCount() - start_time) / cv::getTickFrequency();
-		}
+		
+		ConvertToGrayscale_8bit(latest_frame, latest_gray_frame);
 
 	}
-	else if (is_image_seq)
-	{
-		if (image_files.empty() || frame_num >= image_files.size())
-		{
-			// Indicate lack of success by returning an empty image
-			latest_frame = cv::Mat();
-		}
-		else
-		{
-			latest_frame = cv::imread(image_files[frame_num], CV_LOAD_IMAGE_COLOR);			
-		}
-		time_stamp = 0;
-	}
-	
-	// Set the grayscale frame
-	ConvertToGrayscale_8bit(latest_frame, latest_gray_frame);
-
 	frame_num++;
 
 	return latest_frame;

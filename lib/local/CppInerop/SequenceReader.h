@@ -12,22 +12,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -37,26 +37,22 @@
 
 // Include all the unmanaged things we need.
 
-#include <opencv2/core/core.hpp>
-#include "opencv2/objdetect.hpp"
-#include "opencv2/calib3d.hpp"
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
 #include <vector>
 #include <set>
+#include <string>
 
 #include <OpenCVWrappers.h>
 #include <ImageReader.h>
-
-#include "DeviceEnumerator.h"
-
-#include "SequenceCapture.h"
+#include <DeviceEnumerator.h>
+#include <SequenceCapture.h>
 
 #pragma managed
 
 #include <msclr\marshal.h>
 #include <msclr\marshal_cppstd.h>
+
+using namespace System::Collections::Generic;
 
 namespace UtilitiesOF {
 
@@ -148,15 +144,22 @@ namespace UtilitiesOF {
 		OpenCVWrappers::RawImage^ GetNextImage()
 		{
 			cv::Mat next_image = m_sequence_capture->GetNextFrame();
-
-			if (m_rgb_frame == nullptr)
-			{
-				m_rgb_frame = gcnew OpenCVWrappers::RawImage(next_image.size().width, next_image.size().width, CV_8UC3);
-			}
-
-			next_image.copyTo(m_rgb_frame->Mat);
+			m_rgb_frame = gcnew OpenCVWrappers::RawImage(next_image);
 
 			return m_rgb_frame;
+		}
+
+		OpenCVWrappers::RawImage^ GetCurrentFrameGray() {
+
+			cv::Mat_<uchar> next_gray_image = m_sequence_capture->GetGrayFrame();
+			m_gray_frame = gcnew OpenCVWrappers::RawImage(next_gray_image);
+			
+			return m_gray_frame;
+		}
+
+		int GetFrameNumber()
+		{
+			return m_sequence_capture->GetFrameNumber();
 		}
 
 		double GetTimestamp()
@@ -210,20 +213,6 @@ namespace UtilitiesOF {
 			return m_sequence_capture->fps;
 		}
 
-		OpenCVWrappers::RawImage^ GetCurrentFrameGray() {
-
-			cv::Mat next_gray_image = m_sequence_capture->GetGrayFrame();
-
-			if (m_gray_frame == nullptr)
-			{
-				m_gray_frame = gcnew OpenCVWrappers::RawImage(next_gray_image.size().width, next_gray_image.size().width, CV_8UC3);
-			}
-
-			next_gray_image.copyTo(m_gray_frame->Mat);
-
-			return m_gray_frame;
-		}
-
 		void Close() {
 			m_sequence_capture->Close();
 		}
@@ -233,21 +222,9 @@ namespace UtilitiesOF {
 		// May be called multiple times.
 		!SequenceReader()
 		{
-			// Automatically closes capture object before freeing memory.	
-			if (m_sequence_capture != nullptr)
-			{
-				delete m_sequence_capture;
-			}
-
-			if (m_rgb_frame != nullptr)
-			{
-				delete m_rgb_frame;
-			}
-			if (m_gray_frame != nullptr)
-			{
-				delete m_gray_frame;
-			}
-
+			delete m_sequence_capture;
+			delete m_rgb_frame;
+			delete m_gray_frame;
 		}
 
 		// Destructor. Called on explicit Dispose() only.
@@ -258,7 +235,7 @@ namespace UtilitiesOF {
 	
 	private:
 		// Static methods for listing cameras and their resolutions
-		static void split(const std::string &s, char delim, std::vector<string> &elems) {
+		static void split(const std::string &s, char delim, std::vector<std::string> &elems) {
 			std::stringstream ss;
 			ss.str(s);
 			std::string item;
@@ -286,7 +263,7 @@ namespace UtilitiesOF {
 				auto resolutions = gcnew System::Collections::Generic::List<System::Tuple<int, int>^>();
 				for (size_t r_idx = 0; r_idx < resolution_list.size(); r_idx++)
 				{
-					string res = resolution_list[r_idx]["res"];
+					std::string res = resolution_list[r_idx]["res"];
 
 					std::vector<std::string> elems;
 					split(res, 'x', elems);
@@ -316,7 +293,7 @@ namespace UtilitiesOF {
 				auto resolutions = camera_list[name_m];
 				for (int j = 0; j < resolutions->Count; j++)
 				{
-					stringstream ss;
+					std::stringstream ss;
 					ss << resolutions[j]->Item1 << "x" << resolutions[j]->Item2;
 
 					fs << "{:" << "res" << ss.str();
@@ -358,7 +335,6 @@ namespace UtilitiesOF {
 			{
 				// Thumbnail to help with camera selection
 				cv::Mat sample_img;
-				OpenCVWrappers::RawImage^ sample_img_managed = gcnew OpenCVWrappers::RawImage();
 
 				auto resolutions = gcnew List<System::Tuple<int, int>^>();
 
@@ -428,8 +404,8 @@ namespace UtilitiesOF {
 					camera_resolution_list[device_name_m] = resolutions;
 					WriteCameraListingToFile(camera_resolution_list, root_directory + "camera_list.xml");
 				}
-				sample_img.copyTo(sample_img_managed->Mat);
 
+				OpenCVWrappers::RawImage^ sample_img_managed = gcnew OpenCVWrappers::RawImage(sample_img);
 				managed_camera_list->Add(gcnew System::Tuple<int, System::String^, List<System::Tuple<int, int>^>^, OpenCVWrappers::RawImage^>(i, device_name_m, resolutions, sample_img_managed));
 			}
 

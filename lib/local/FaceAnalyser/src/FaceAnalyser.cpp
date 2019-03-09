@@ -13,22 +13,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas BaltruÅ¡aitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. BaltruÅ¡aitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
-//       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
+//       Erroll Wood, Tadas BaltruÅ¡aitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
-//       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
+//       Tadas BaltruÅ¡aitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -242,7 +242,7 @@ int GetViewId(const vector<cv::Vec3d> orientations_all, const cv::Vec3d& orienta
 		if(i == 0 || d < dbest)
 		{
 			dbest = d;
-			id = i;
+			id = (int) i;
 		}
 	}
 	return id;
@@ -370,7 +370,7 @@ void FaceAnalyser::AddNextFrame(const cv::Mat& frame, const cv::Mat_<float>& det
 
 	if (aligned_face_for_output.channels() == 3 && out_grayscale)
 	{
-		cvtColor(aligned_face_for_output, aligned_face_for_output, CV_BGR2GRAY);
+		cvtColor(aligned_face_for_output, aligned_face_for_output, cv::COLOR_BGR2GRAY);
 	}
 
 	// Extract HOG descriptor from the frame and convert it to a useable format
@@ -526,7 +526,7 @@ void FaceAnalyser::PostprocessPredictions()
 	{
 		int success_ind = 0;
 		int all_ind = 0;
-		int all_frames_size = timestamps.size();
+		int all_frames_size = (int)timestamps.size();
 		
 		while(all_ind < all_frames_size && success_ind < max_init_frames)
 		{
@@ -616,14 +616,14 @@ void FaceAnalyser::ExtractAllPredictionsOfflineReg(vector<std::pair<std::string,
 			{
 				if (au_name.compare(dyn_au_names[a]) == 0)
 				{
-					au_id = a;
+					au_id = (int)a;
 				}
 			}
 
 			if (au_id != -1 && AU_SVR_dynamic_appearance_lin_regressors.GetCutoffs()[au_id] != -1)
 			{
 				double cutoff = AU_SVR_dynamic_appearance_lin_regressors.GetCutoffs()[au_id];
-				offsets.push_back(au_good.at((double)au_good.size() * cutoff));
+				offsets.push_back(au_good.at((int)((double)au_good.size() * cutoff)));
 			}
 			else
 			{
@@ -703,22 +703,26 @@ void FaceAnalyser::ExtractAllPredictionsOfflineClass(vector<std::pair<std::strin
 		// Perform a moving average of 7 frames on classifications
 		int window_size = 7;
 		vector<double> au_vals_tmp = au_vals;
-		for (size_t i = (window_size - 1)/2; i < au_vals.size() - (window_size - 1) / 2; ++i)
+		if((int)au_vals.size() > (window_size - 1) / 2)
 		{
-			double sum = 0;
-			for (int w = -(window_size - 1) / 2; w <= (window_size - 1) / 2; ++w)
+			for (size_t i = (window_size - 1)/2; i < au_vals.size() - (window_size - 1) / 2; ++i)
 			{
-				sum += au_vals_tmp[i + w];
+				double sum = 0;
+				int div_by = 0;
+				for (int w = -(window_size - 1) / 2; w <= (window_size - 1) / 2 && (i+w < au_vals_tmp.size()); ++w)
+				{
+					sum += au_vals_tmp[i + w];
+					div_by++;
+				}
+				sum = sum / div_by;
+				if (sum < 0.5)
+					sum = 0;
+				else
+					sum = 1;
+
+				au_vals[i] = sum;
 			}
-			sum = sum / window_size;
-			if (sum < 0.5)
-				sum = 0;
-			else
-				sum = 1;
-
-			au_vals[i] = sum;
 		}
-
 		au_predictions.push_back(std::pair<string,vector<double>>(au_name, au_vals));
 
 	}
@@ -1065,7 +1069,7 @@ void FaceAnalyser::Read(std::string model_loc)
 		else if (module.compare("PDM") == 0)
 		{
 			cout << "Reading the PDM from: " << location;
-			pdm = PDM();
+			pdm = LandmarkDetector::PDM();
 			pdm.Read(location);
 			cout << "... Done" << endl;
 		}
@@ -1224,27 +1228,27 @@ void FaceAnalyser::ReadRegressor(std::string fname, const vector<string>& au_nam
 {
 	ifstream regressor_stream(fname.c_str(), ios::in | ios::binary);
 
-	if(regressor_stream.is_open())
+	if (regressor_stream.is_open())
 	{
 		// First read the input type
 		int regressor_type;
 		regressor_stream.read((char*)&regressor_type, 4);
-	
-		if(regressor_type == SVR_appearance_static_linear)
+
+		if (regressor_type == SVR_appearance_static_linear)
 		{
-			AU_SVR_static_appearance_lin_regressors.Read(regressor_stream, au_names);		
+			AU_SVR_static_appearance_lin_regressors.Read(regressor_stream, au_names);
 		}
-		else if(regressor_type == SVR_appearance_dynamic_linear)
+		else if (regressor_type == SVR_appearance_dynamic_linear)
 		{
-			AU_SVR_dynamic_appearance_lin_regressors.Read(regressor_stream, au_names);		
+			AU_SVR_dynamic_appearance_lin_regressors.Read(regressor_stream, au_names);
 		}
-		else if(regressor_type == SVM_linear_stat)
+		else if (regressor_type == SVM_linear_stat)
 		{
-			AU_SVM_static_appearance_lin.Read(regressor_stream, au_names);		
+			AU_SVM_static_appearance_lin.Read(regressor_stream, au_names);
 		}
-		else if(regressor_type == SVM_linear_dyn)
+		else if (regressor_type == SVM_linear_dyn)
 		{
-			AU_SVM_dynamic_appearance_lin.Read(regressor_stream, au_names);		
+			AU_SVM_dynamic_appearance_lin.Read(regressor_stream, au_names);
 		}
 	}
 }

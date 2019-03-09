@@ -13,22 +13,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -42,8 +42,8 @@
 
 #pragma unmanaged
 
-#include "cv.h"
-#include "highgui.h"
+#include <cv.h>
+#include <highgui.h>
 
 #include <opencv2/videoio/videoio.hpp>  // Video write
 #include <opencv2/videoio/videoio_c.h>  // Video write
@@ -65,9 +65,6 @@ namespace OpenCVWrappers {
 	private:
 
 		cv::Mat* mat;
-
-		static int refCount;
-
 
 	public:
 
@@ -101,39 +98,9 @@ namespace OpenCVWrappers {
 			}
 		}
 
-		static property int RefCount {
-			int get() { return refCount; }
-		}
-
-		RawImage()
-		{
-			mat = new cv::Mat();
-			refCount++;
-		}
-
 		RawImage(const cv::Mat& m)
 		{
 			mat = new cv::Mat(m.clone());
-			refCount++;
-		}
-
-		RawImage(RawImage^ img)
-		{
-			mat = new cv::Mat(img->Mat.clone());
-			refCount++;
-		}
-
-		RawImage(int width, int height, int type)
-		{
-			mat = new cv::Mat(height, width, type);
-			refCount++;
-		}
-
-		RawImage(int width, int height, PixelFormat format)
-		{
-			int type = RawImage::PixelFormatToType(format);
-			mat = new cv::Mat(height, width, type);
-			refCount++;
 		}
 
 		void Mirror()
@@ -150,7 +117,6 @@ namespace OpenCVWrappers {
 			{
 				delete mat;
 				mat = NULL;
-				refCount--;
 			}
 		}
 
@@ -181,7 +147,7 @@ namespace OpenCVWrappers {
 
 			int get()
 			{
-				return mat->step;
+				return (int) mat->step;
 			}
 		}
 

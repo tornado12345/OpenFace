@@ -12,26 +12,24 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
 //
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
-//
 ///////////////////////////////////////////////////////////////////////////////
-
-// Camera_Interop.h
 
 #pragma once
 
@@ -39,12 +37,15 @@
 
 // Include all the unmanaged things we need.
 
-#include "RecorderOpenFace.h"
+#include <RecorderOpenFace.h>
+#include <OpenCVWrappers.h>
 
 #pragma managed
 
 #include <msclr\marshal.h>
 #include <msclr\marshal_cppstd.h>
+
+using namespace System::Collections::Generic;
 
 namespace UtilitiesOF {
 
@@ -58,12 +59,12 @@ namespace UtilitiesOF {
 	public:
 		RecorderOpenFaceParameters(bool sequence, bool is_from_webcam, bool output_2D_landmarks, bool output_3D_landmarks,
 			bool output_model_params, bool output_pose, bool output_AUs, bool output_gaze, bool output_hog, bool output_tracked,
-			bool output_aligned_faces, float fx, float fy, float cx, float cy, double fps_vid_out)
+			bool output_aligned_faces, bool record_bad_aligned, float fx, float fy, float cx, float cy, double fps_vid_out)
 		{
 
 			m_params = new Utilities::RecorderOpenFaceParameters(sequence, is_from_webcam, 
 				output_2D_landmarks, output_3D_landmarks, output_model_params, output_pose, output_AUs,
-				output_gaze, output_hog, output_tracked, output_aligned_faces, fx, fy, cx, cy, fps_vid_out);
+				output_gaze, output_hog, output_tracked, output_aligned_faces, record_bad_aligned, fx, fy, cx, cy, fps_vid_out);
 
 		}
 
@@ -74,12 +75,7 @@ namespace UtilitiesOF {
 
 		!RecorderOpenFaceParameters()
 		{
-			// Automatically closes capture object before freeing memory.	
-			if (m_params != nullptr)
-			{
-				delete m_params;
-			}
-
+			delete m_params;
 		}
 
 		// Destructor. Called on explicit Dispose() only.
@@ -118,25 +114,30 @@ namespace UtilitiesOF {
 			m_recorder->WriteObservation();
 		}
 
-		void SetObservationGaze(System::Tuple<double, double, double>^ gaze_direction0, System::Tuple<double, double, double>^ gaze_direction1, System::Tuple<double, double>^ gaze_angle,
-			List<System::Tuple<double, double>^>^ landmarks_2D, List<System::Tuple<double,double,double>^>^ landmarks_3D)
+		void WriteObservationTracked()
+		{
+			m_recorder->WriteObservationTracked();
+		}
+
+		void SetObservationGaze(System::Tuple<float, float, float>^ gaze_direction0, System::Tuple<float, float, float>^ gaze_direction1, System::Tuple<float, float>^ gaze_angle,
+			List<System::Tuple<float, float>^>^ landmarks_2D, List<System::Tuple<float, float, float>^>^ landmarks_3D)
 		{
 			cv::Point3f gaze_direction0_cv(gaze_direction0->Item1, gaze_direction0->Item2, gaze_direction0->Item3);
 			cv::Point3f gaze_direction1_cv(gaze_direction1->Item1, gaze_direction1->Item2, gaze_direction1->Item3);
-			cv::Vec2d gaze_angle_cv(gaze_angle->Item1, gaze_angle->Item2);
+			cv::Vec2f gaze_angle_cv(gaze_angle->Item1, gaze_angle->Item2);
 
 			// Construct an OpenCV matrix from the landmarks
-			std::vector<cv::Point2d> landmarks_2D_cv;
+			std::vector<cv::Point2f> landmarks_2D_cv;
 			for (int i = 0; i < landmarks_2D->Count; ++i)
 			{
-				landmarks_2D_cv.push_back(cv::Point2d(landmarks_2D[i]->Item1, landmarks_2D[i]->Item2));
+				landmarks_2D_cv.push_back(cv::Point2f(landmarks_2D[i]->Item1, landmarks_2D[i]->Item2));
 			}
 
 			// Construct an OpenCV matrix from the landmarks
-			std::vector<cv::Point3d> landmarks_3D_cv;
+			std::vector<cv::Point3f> landmarks_3D_cv;
 			for (int i = 0; i < landmarks_3D->Count; ++i)
 			{
-				landmarks_3D_cv.push_back(cv::Point3d(landmarks_3D[i]->Item1, landmarks_3D[i]->Item2, landmarks_3D[i]->Item3));
+				landmarks_3D_cv.push_back(cv::Point3f(landmarks_3D[i]->Item1, landmarks_3D[i]->Item2, landmarks_3D[i]->Item3));
 			}
 
 			m_recorder->SetObservationGaze(gaze_direction0_cv, gaze_direction1_cv, gaze_angle_cv, landmarks_2D_cv, landmarks_3D_cv);
@@ -153,9 +154,9 @@ namespace UtilitiesOF {
 			m_recorder->SetObservationTimestamp(timestamp);
 		}
 
-		void SetObservationPose(List<double>^ pose)
+		void SetObservationPose(List<float>^ pose)
 		{
-			cv::Vec6d pose_vec(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]);
+			cv::Vec6f pose_vec(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]);
 			m_recorder->SetObservationPose(pose_vec);
 		}
 
@@ -191,37 +192,46 @@ namespace UtilitiesOF {
 			m_recorder->SetObservationVisualization(vis_image->Mat);
 		}
 
+		void SetObservationFaceID(int face_id)
+		{
+			m_recorder->SetObservationFaceID(face_id);
+		}
+
+		void SetObservationFrameNumber(int frame_number)
+		{
+			m_recorder->SetObservationFrameNumber(frame_number);
+		}
 
 		void SetObservationHOG(bool success, OpenCVWrappers::RawImage^ aligned_face_image, int num_cols, int num_rows, int num_channels)
 		{
 			m_recorder->SetObservationHOG(success, aligned_face_image->Mat, num_cols, num_rows, num_channels);
 		}
 
-		void SetObservationLandmarks(List<System::Tuple<double, double>^>^ landmarks_2D, List<System::Tuple<double, double, double>^>^ landmarks_3D, List<double>^ params_global, List<double>^ params_local, double confidence, bool success)
+		void SetObservationLandmarks(List<System::Tuple<float, float>^>^ landmarks_2D, List<System::Tuple<float, float, float>^>^ landmarks_3D, List<float>^ params_global, List<float>^ params_local, double confidence, bool success)
 		{
 			// Construct an OpenCV matrix from the landmarks
-			cv::Mat_<double> landmarks_2D_mat(landmarks_2D->Count * 2, 1, 0.0);
+			cv::Mat_<float> landmarks_2D_mat(landmarks_2D->Count * 2, 1, 0.0);
 			for (int i = 0; i < landmarks_2D->Count; ++i)
 			{
-				landmarks_2D_mat.at<double>(i, 0) = landmarks_2D[i]->Item1;
-				landmarks_2D_mat.at<double>(i + landmarks_2D->Count, 0) = landmarks_2D[i]->Item2;
+				landmarks_2D_mat.at<float>(i, 0) = landmarks_2D[i]->Item1;
+				landmarks_2D_mat.at<float>(i + landmarks_2D->Count, 0) = landmarks_2D[i]->Item2;
 			}
 
 			// Construct an OpenCV matrix from the landmarks
-			cv::Mat_<double> landmarks_3D_mat(landmarks_3D->Count * 3, 1, 0.0);
+			cv::Mat_<float> landmarks_3D_mat(landmarks_3D->Count * 3, 1, 0.0);
 			for (int i = 0; i < landmarks_3D->Count; ++i)
 			{
-				landmarks_3D_mat.at<double>(i, 0) = landmarks_3D[i]->Item1;
-				landmarks_3D_mat.at<double>(i + landmarks_3D->Count, 0) = landmarks_3D[i]->Item2;
-				landmarks_3D_mat.at<double>(i + 2 * landmarks_3D->Count, 0) = landmarks_3D[i]->Item3;
+				landmarks_3D_mat.at<float>(i, 0) = landmarks_3D[i]->Item1;
+				landmarks_3D_mat.at<float>(i + landmarks_3D->Count, 0) = landmarks_3D[i]->Item2;
+				landmarks_3D_mat.at<float>(i + 2 * landmarks_3D->Count, 0) = landmarks_3D[i]->Item3;
 			}
 
-			cv::Vec6d params_global_vec(params_global[0], params_global[1], params_global[2], params_global[3], params_global[4], params_global[5]);
+			cv::Vec6f params_global_vec(params_global[0], params_global[1], params_global[2], params_global[3], params_global[4], params_global[5]);
 
-			cv::Mat_<double> params_local_vec(params_local->Count, 1, 0.0);
+			cv::Mat_<float> params_local_vec(params_local->Count, 1, 0.0);
 			for (int i = 0; i < params_local->Count; ++i)
 			{
-				params_local_vec.at<double>(i, 0) = params_local[i];
+				params_local_vec.at<float>(i, 0) = params_local[i];
 			}
 
 			m_recorder->SetObservationLandmarks(landmarks_2D_mat, landmarks_3D_mat, params_global_vec, params_local_vec, confidence, success);
@@ -232,12 +242,7 @@ namespace UtilitiesOF {
 		// May be called multiple times.
 		!RecorderOpenFace()
 		{
-			// Automatically closes capture object before freeing memory.	
-			if (m_recorder != nullptr)
-			{
-				delete m_recorder;
-			}
-
+			delete m_recorder;
 		}
 
 		// Destructor. Called on explicit Dispose() only.

@@ -13,28 +13,28 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
 //
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
-//
 ///////////////////////////////////////////////////////////////////////////////
 
 // FaceAnalyser_Interop.h
-#ifndef __FACE_ANALYSER_INTEROP_h_
-#define __FACE_ANALYSER_INTEROP_h_
+#ifndef FACE_ANALYSER_INTEROP_H
+#define FACE_ANALYSER_INTEROP_H
 
 #pragma once
 
@@ -46,17 +46,12 @@
 
 #pragma unmanaged
 
+#include <opencv2/opencv.hpp>
+
 // Allows to overcome boost name clash stuff with C++ CLI
 #ifdef __cplusplus_cli
 #define generic __identifier(generic)
 #endif
-
-#include <opencv2/core/core.hpp>
-#include "opencv2/objdetect.hpp"
-#include "opencv2/calib3d.hpp"
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
 
 #include <OpenCVWrappers.h>
 #include <Face_utils.h>
@@ -71,9 +66,9 @@
 #undef generic
 #endif
 
-using namespace System::Collections::Generic;
-
 #pragma managed
+
+using namespace System::Collections::Generic;
 
 namespace FaceAnalyser_Interop {
 
@@ -119,14 +114,14 @@ public:
 		face_analyser->PostprocessOutputFile(msclr::interop::marshal_as<std::string>(file));
 	}
 
-	void AddNextFrame(OpenCVWrappers::RawImage^ frame, List<System::Tuple<double, double>^>^ landmarks, bool success, bool online) {
+	void AddNextFrame(OpenCVWrappers::RawImage^ frame, List<System::Tuple<float, float>^>^ landmarks, bool success, bool online) {
 			
 		// Construct an OpenCV matric from the landmarks
-		cv::Mat_<double> landmarks_mat(landmarks->Count * 2, 1, 0.0);
+		cv::Mat_<float> landmarks_mat(landmarks->Count * 2, 1, 0.0);
 		for (int i = 0; i < landmarks->Count; ++i)
 		{
-			landmarks_mat.at<double>(i, 0) = landmarks[i]->Item1;
-			landmarks_mat.at<double>(i + landmarks->Count, 0) = landmarks[i]->Item2;
+			landmarks_mat.at<float>(i, 0) = landmarks[i]->Item1;
+			landmarks_mat.at<float>(i + landmarks->Count, 0) = landmarks[i]->Item2;
 		}
 
 		//(captured_image, face_model.detected_landmarks, face_model.detection_success, sequence_reader.time_stamp, sequence_reader.IsWebcam());
@@ -135,7 +130,7 @@ public:
 
 		cv::Mat_<double> hog_d;
 		face_analyser->GetLatestHOG(hog_d, *num_rows, *num_cols);
-		hog_d.convertTo(*hog_features, CV_64F);
+		hog_d.convertTo(*hog_features, CV_32F);
 		
 		face_analyser->GetLatestAlignedFace(*aligned_face);
 				
@@ -143,15 +138,15 @@ public:
 	
 	// Predicting AUs from a single image
     System::Tuple<Dictionary<System::String^, double>^, Dictionary<System::String^, double>^>^
-		PredictStaticAUsAndComputeFeatures(OpenCVWrappers::RawImage^ frame, List<System::Tuple<double, double>^>^ landmarks)
+		PredictStaticAUsAndComputeFeatures(OpenCVWrappers::RawImage^ frame, List<System::Tuple<float, float>^>^ landmarks)
 	{
 		
 		// Construct an OpenCV matric from the landmarks
-		cv::Mat_<double> landmarks_mat(landmarks->Count * 2, 1, 0.0);
+		cv::Mat_<float> landmarks_mat(landmarks->Count * 2, 1, 0.0);
 		for (int i = 0; i < landmarks->Count; ++i)
 		{
-			landmarks_mat.at<double>(i, 0) = landmarks[i]->Item1;
-			landmarks_mat.at<double>(i + landmarks->Count, 0) = landmarks[i]->Item2;
+			landmarks_mat.at<float>(i, 0) = landmarks[i]->Item1;
+			landmarks_mat.at<float>(i + landmarks->Count, 0) = landmarks[i]->Item2;
 		}
 
 		face_analyser->PredictStaticAUsAndComputeFeatures(frame->Mat, landmarks_mat);
@@ -274,7 +269,7 @@ public:
 	// but not automatically called on explicit Dispose().
 	// May be called multiple times.
 	!FaceAnalyserManaged()
-	{
+	{		
 		delete hog_features;
 		delete aligned_face;
 		delete num_cols;
@@ -291,4 +286,4 @@ public:
 };
 }
 
-#endif
+#endif // FACE_ANALYSER_INTEROP_H

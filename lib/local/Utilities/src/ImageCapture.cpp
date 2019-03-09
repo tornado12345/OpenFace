@@ -12,22 +12,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas BaltruÅ¡aitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. BaltruÅ¡aitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
-//       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
+//       Erroll Wood, Tadas BaltruÅ¡aitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
-//       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
+//       Tadas BaltruÅ¡aitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -244,14 +244,14 @@ bool ImageCapture::OpenDirectory(std::string directory, std::string bbox_directo
 			if (!bbox_directory.empty())
 			{
 				boost::filesystem::path current_file = *file_iterator;
-				boost::filesystem::path bbox_file = current_file.replace_extension("txt");
-
+				boost::filesystem::path bbox_file = bbox_directory / current_file.filename().replace_extension("txt");
+				
 				// If there is a bounding box file push it to the list of bounding boxes
 				if (boost::filesystem::exists(bbox_file))
 				{
 					std::ifstream in_bbox(bbox_file.string().c_str(), std::ios_base::in);
 
-					std::vector<cv::Rect_<double> > bboxes_image;
+					std::vector<cv::Rect_<float> > bboxes_image;
 
 					// Keep reading bounding boxes from a file, stop if empty line or 
 					while (!in_bbox.eof())
@@ -264,10 +264,10 @@ bool ImageCapture::OpenDirectory(std::string directory, std::string bbox_directo
 
 						std::stringstream ss(bbox_string);
 
-						double min_x, min_y, max_x, max_y;
+						float min_x, min_y, max_x, max_y;
 
 						ss >> min_x >> min_y >> max_x >> max_y;
-						bboxes_image.push_back(cv::Rect_<double>(min_x, min_y, max_x - min_x, max_y - min_y));
+						bboxes_image.push_back(cv::Rect_<float>(min_x, min_y, max_x - min_x, max_y - min_y));
 					}
 					in_bbox.close();
 
@@ -358,7 +358,7 @@ cv::Mat ImageCapture::GetNextImage()
 	}
 		
 	// Load the image as an 8 bit RGB
-	latest_frame = cv::imread(image_files[frame_num], CV_LOAD_IMAGE_COLOR);
+	latest_frame = cv::imread(image_files[frame_num], cv::IMREAD_COLOR);
 
 	if (latest_frame.empty())
 	{
@@ -400,7 +400,7 @@ cv::Mat ImageCapture::GetNextImage()
 	return latest_frame;
 }
 
-std::vector<cv::Rect_<double> > ImageCapture::GetBoundingBoxes()
+std::vector<cv::Rect_<float> > ImageCapture::GetBoundingBoxes()
 {
 	if (!bounding_boxes.empty())
 	{
@@ -408,7 +408,7 @@ std::vector<cv::Rect_<double> > ImageCapture::GetBoundingBoxes()
 	}
 	else
 	{
-		return std::vector<cv::Rect_<double> >();
+		return std::vector<cv::Rect_<float> >();
 	}
 }
 

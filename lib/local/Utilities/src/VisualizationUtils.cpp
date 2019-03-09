@@ -12,22 +12,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -77,15 +77,15 @@ namespace Utilities
 			frame_times.pop();
 	}
 
-	void DrawBox(cv::Mat image, cv::Vec6d pose, cv::Scalar color, int thickness, float fx, float fy, float cx, float cy)
+	void DrawBox(cv::Mat image, cv::Vec6f pose, cv::Scalar color, int thickness, float fx, float fy, float cx, float cy)
 	{
 		auto edge_lines = CalculateBox(pose, fx, fy, cx, cy);
 		DrawBox(edge_lines, image, color, thickness);
 	}
 
-	std::vector<std::pair<cv::Point2d, cv::Point2d>> CalculateBox(cv::Vec6d pose, float fx, float fy, float cx, float cy)
+	std::vector<std::pair<cv::Point2f, cv::Point2f>> CalculateBox(cv::Vec6f pose, float fx, float fy, float cx, float cy)
 	{
-		double boxVerts[] = { -1, 1, -1,
+		float boxVerts[] = { -1, 1, -1,
 			1, 1, -1,
 			1, 1, 1,
 			-1, 1, 1,
@@ -109,10 +109,10 @@ namespace Utilities
 		edges.push_back(std::pair<int, int>(7, 6));
 
 		// The size of the head is roughly 200mm x 200mm x 200mm
-		cv::Mat_<double> box = cv::Mat(8, 3, CV_64F, boxVerts).clone() * 100;
+		cv::Mat_<float> box = cv::Mat(8, 3, CV_32F, boxVerts).clone() * 100.0f;
 
-		cv::Matx33d rot = Euler2RotationMatrix(cv::Vec3d(pose[3], pose[4], pose[5]));
-		cv::Mat_<double> rotBox;
+		cv::Matx33f rot = Euler2RotationMatrix(cv::Vec3f(pose[3], pose[4], pose[5]));
+		cv::Mat_<float> rotBox;
 
 		// Rotate the box
 		rotBox = cv::Mat(rot) * box.t();
@@ -124,41 +124,41 @@ namespace Utilities
 		rotBox.col(2) = rotBox.col(2) + pose[2];
 
 		// draw the lines
-		cv::Mat_<double> rotBoxProj;
+		cv::Mat_<float> rotBoxProj;
 		Project(rotBoxProj, rotBox, fx, fy, cx, cy);
 
-		std::vector<std::pair<cv::Point2d, cv::Point2d>> lines;
+		std::vector<std::pair<cv::Point2f, cv::Point2f>> lines;
 
 		for (size_t i = 0; i < edges.size(); ++i)
 		{
-			cv::Mat_<double> begin;
-			cv::Mat_<double> end;
+			cv::Mat_<float> begin;
+			cv::Mat_<float> end;
 
 			rotBoxProj.row(edges[i].first).copyTo(begin);
 			rotBoxProj.row(edges[i].second).copyTo(end);
 
-			cv::Point2d p1(begin.at<double>(0), begin.at<double>(1));
-			cv::Point2d p2(end.at<double>(0), end.at<double>(1));
+			cv::Point2f p1(begin.at<float>(0), begin.at<float>(1));
+			cv::Point2f p2(end.at<float>(0), end.at<float>(1));
 
-			lines.push_back(std::pair<cv::Point2d, cv::Point2d>(p1, p2));
+			lines.push_back(std::pair<cv::Point2f, cv::Point2f>(p1, p2));
 
 		}
 
 		return lines;
 	}
 
-	void DrawBox(const std::vector<std::pair<cv::Point2d, cv::Point2d>>& lines, cv::Mat image, cv::Scalar color, int thickness)
+	void DrawBox(const std::vector<std::pair<cv::Point2f, cv::Point2f>>& lines, cv::Mat image, cv::Scalar color, int thickness)
 	{
 		cv::Rect image_rect(0, 0, image.cols, image.rows);
 
 		for (size_t i = 0; i < lines.size(); ++i)
 		{
-			cv::Point2d p1 = lines.at(i).first;
-			cv::Point2d p2 = lines.at(i).second;
+			cv::Point2f p1 = lines.at(i).first;
+			cv::Point2f p2 = lines.at(i).second;
 			// Only draw the line if one of the points is inside the image
 			if (p1.inside(image_rect) || p2.inside(image_rect))
 			{
-				cv::line(image, p1, p2, color, thickness, CV_AA);
+				cv::line(image, p1, p2, color, thickness, cv::LINE_AA);
 			}
 
 		}

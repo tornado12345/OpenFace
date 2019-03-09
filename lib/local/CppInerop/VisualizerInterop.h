@@ -12,22 +12,22 @@
 //       not limited to academic journal and conference publications, technical
 //       reports and manuals, must cite at least one of the following works:
 //
-//       OpenFace: an open source facial behavior analysis toolkit
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency
-//       in IEEE Winter Conference on Applications of Computer Vision, 2016  
+//       OpenFace 2.0: Facial Behavior Analysis Toolkit
+//       Tadas Baltrušaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency
+//       in IEEE International Conference on Automatic Face and Gesture Recognition, 2018  
+//
+//       Convolutional experts constrained local model for facial landmark detection.
+//       A. Zadeh, T. Baltrušaitis, and Louis-Philippe Morency,
+//       in Computer Vision and Pattern Recognition Workshops, 2017.    
 //
 //       Rendering of Eyes for Eye-Shape Registration and Gaze Estimation
 //       Erroll Wood, Tadas Baltrušaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling 
 //       in IEEE International. Conference on Computer Vision (ICCV),  2015 
 //
-//       Cross-dataset learning and person-speci?c normalisation for automatic Action Unit detection
+//       Cross-dataset learning and person-specific normalisation for automatic Action Unit detection
 //       Tadas Baltrušaitis, Marwa Mahmoud, and Peter Robinson 
 //       in Facial Expression Recognition and Analysis Challenge, 
 //       IEEE International Conference on Automatic Face and Gesture Recognition, 2015 
-//
-//       Constrained Local Neural Fields for robust facial landmark detection in the wild.
-//       Tadas Baltrušaitis, Peter Robinson, and Louis-Philippe Morency. 
-//       in IEEE Int. Conference on Computer Vision Workshops, 300 Faces in-the-Wild Challenge, 2013.    
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +37,8 @@
 
 // Include all the unmanaged things we need.
 
-#include "Visualizer.h"
+#include <Visualizer.h>
+#include <OpenCVWrappers.h>
 
 #pragma managed
 
@@ -59,34 +60,34 @@ namespace UtilitiesOF {
 			m_visualizer = new Utilities::Visualizer(vis_track, vis_hog, vis_aligned, vis_aus);
 		}
 
-		void SetObservationGaze(System::Tuple<double, double, double>^ gaze_direction0, System::Tuple<double, double, double>^ gaze_direction1,
-			List<System::Tuple<double, double>^>^ landmarks_2D, List<System::Tuple<double, double, double>^>^ landmarks_3D,
+		void SetObservationGaze(System::Tuple<float, float, float>^ gaze_direction0, System::Tuple<float, float, float>^ gaze_direction1,
+			List<System::Tuple<float, float>^>^ landmarks_2D, List<System::Tuple<float, float, float>^>^ landmarks_3D,
 			double confidence)
 		{
 			cv::Point3f gaze_direction0_cv(gaze_direction0->Item1, gaze_direction0->Item2, gaze_direction0->Item3);
 			cv::Point3f gaze_direction1_cv(gaze_direction1->Item1, gaze_direction1->Item2, gaze_direction1->Item3);
 
 			// Construct an OpenCV matrix from the landmarks
-			std::vector<cv::Point2d> landmarks_2D_cv;
+			std::vector<cv::Point2f> landmarks_2D_cv;
 			for (int i = 0; i < landmarks_2D->Count; ++i)
 			{
-				landmarks_2D_cv.push_back(cv::Point2d(landmarks_2D[i]->Item1, landmarks_2D[i]->Item2));
+				landmarks_2D_cv.push_back(cv::Point2f(landmarks_2D[i]->Item1, landmarks_2D[i]->Item2));
 			}
 
 			// Construct an OpenCV matrix from the landmarks
-			std::vector<cv::Point3d> landmarks_3D_cv;
+			std::vector<cv::Point3f> landmarks_3D_cv;
 			for (int i = 0; i < landmarks_3D->Count; ++i)
 			{
-				landmarks_3D_cv.push_back(cv::Point3d(landmarks_3D[i]->Item1, landmarks_3D[i]->Item2, landmarks_3D[i]->Item3));
+				landmarks_3D_cv.push_back(cv::Point3f(landmarks_3D[i]->Item1, landmarks_3D[i]->Item2, landmarks_3D[i]->Item3));
 			}
 
 			m_visualizer->SetObservationGaze(gaze_direction0_cv, gaze_direction1_cv, landmarks_2D_cv, landmarks_3D_cv, confidence);
 		}
 
 		// Setting the observations
-		void SetObservationPose(List<double>^ pose, double confidence)
+		void SetObservationPose(List<float>^ pose, double confidence)
 		{
-			cv::Vec6d pose_vec(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]);
+			cv::Vec6f pose_vec(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]);
 			m_visualizer->SetObservationPose(pose_vec, confidence);
 		}
 
@@ -100,14 +101,14 @@ namespace UtilitiesOF {
 			m_visualizer->SetObservationHOG(observation_HOG->Mat, num_cols, num_rows);
 		}
 
-		void SetObservationLandmarks(List<System::Tuple<double, double>^>^ landmarks_2D, double confidence, List<bool>^ visibilities)
+		void SetObservationLandmarks(List<System::Tuple<float, float>^>^ landmarks_2D, double confidence, List<bool>^ visibilities)
 		{
 			// Construct an OpenCV matrix from the landmarks
-			cv::Mat_<double> landmarks_2D_mat(landmarks_2D->Count * 2, 1, 0.0);
+			cv::Mat_<float> landmarks_2D_mat(landmarks_2D->Count * 2, 1, 0.0);
 			for (int i = 0; i < landmarks_2D->Count; ++i)
 			{
-				landmarks_2D_mat.at<double>(i, 0) = landmarks_2D[i]->Item1;
-				landmarks_2D_mat.at<double>(i + landmarks_2D->Count, 0) = landmarks_2D[i]->Item2;
+				landmarks_2D_mat.at<float>(i, 0) = landmarks_2D[i]->Item1;
+				landmarks_2D_mat.at<float>(i + landmarks_2D->Count, 0) = landmarks_2D[i]->Item2;
 			}
 
 			// Construct an OpenCV matrix from the landmarks
@@ -127,7 +128,7 @@ namespace UtilitiesOF {
 			m_visualizer->SetObservationLandmarks(landmarks_2D_mat, confidence, visibilities_cv);
 		}
 
-		void SetObservationLandmarks(List<System::Tuple<double, double>^>^ landmarks_2D, double confidence)
+		void SetObservationLandmarks(List<System::Tuple<float, float>^>^ landmarks_2D, double confidence)
 		{
 			SetObservationLandmarks(landmarks_2D, confidence, gcnew List<bool>());
 		}
@@ -155,11 +156,7 @@ namespace UtilitiesOF {
 		!Visualizer()
 		{
 			// Automatically closes capture object before freeing memory.	
-			if (m_visualizer != nullptr)
-			{
-				delete m_visualizer;
-			}
-
+			delete m_visualizer;
 		}
 
 		// Destructor. Called on explicit Dispose() only.
