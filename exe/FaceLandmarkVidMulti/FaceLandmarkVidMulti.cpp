@@ -62,21 +62,55 @@ static void printErrorAndAbort(const std::string & error)
 #define FATAL_STREAM( stream ) \
 printErrorAndAbort( std::string( "Fatal error: " ) + stream )
 
-using namespace std;
-
-vector<string> get_arguments(int argc, char **argv)
+std::vector<std::string> get_arguments(int argc, char **argv)
 {
 
-	vector<string> arguments;
+	std::vector<std::string> arguments;
 
 	for (int i = 0; i < argc; ++i)
 	{
-		arguments.push_back(string(argv[i]));
+		arguments.push_back(std::string(argv[i]));
 	}
 	return arguments;
 }
 
-void NonOverlapingDetections(const vector<LandmarkDetector::CLNF>& clnf_models, vector<cv::Rect_<float> >& face_detections)
+double IOU(cv::Rect_<float> rect1, cv::Rect_<float> rect2)
+{
+	double intersection_area = (rect1 & rect2).area();
+	double union_area = rect1.area() + rect2.area() - intersection_area;
+	return intersection_area / union_area;
+}
+
+void RemoveOverlapingModels(std::vector<LandmarkDetector::CLNF>& face_models, std::vector<bool>& active_models)
+{
+	// Go over the model and eliminate detections that are not informative (there already is a tracker there)
+	for (size_t model1 = 0; model1 < active_models.size(); ++model1)
+	{
+		if (active_models[model1])
+		{
+			// See if the detections intersect
+			cv::Rect_<float> model1_rect = face_models[model1].GetBoundingBox();
+
+			for (int model2 = model1 + 1; model2 < active_models.size(); ++model2)
+			{
+				if(active_models[model2])
+				{
+					cv::Rect_<float> model2_rect = face_models[model2].GetBoundingBox();
+
+					// If the model is already tracking what we're detecting ignore the detection, this is determined by amount of overlap
+					if (IOU(model1_rect, model2_rect) > 0.5)
+					{
+						active_models[model1] = false;
+						face_models[model1].Reset();
+					}
+				}
+			}
+		}
+	}
+
+}
+
+void NonOverlapingDetections(const std::vector<LandmarkDetector::CLNF>& clnf_models, std::vector<cv::Rect_<float> >& face_detections)
 {
 
 	// Go over the model and eliminate detections that are not informative (there already is a tracker there)
@@ -88,11 +122,8 @@ void NonOverlapingDetections(const vector<LandmarkDetector::CLNF>& clnf_models, 
 
 		for (int detection = face_detections.size() - 1; detection >= 0; --detection)
 		{
-			double intersection_area = (model_rect & face_detections[detection]).area();
-			double union_area = model_rect.area() + face_detections[detection].area() - 2 * intersection_area;
-
 			// If the model is already tracking what we're detecting ignore the detection, this is determined by amount of overlap
-			if (intersection_area / union_area > 0.5)
+			if (IOU(model_rect, face_detections[detection]) > 0.5)
 			{
 				face_detections.erase(face_detections.begin() + detection);
 			}
@@ -103,13 +134,13 @@ void NonOverlapingDetections(const vector<LandmarkDetector::CLNF>& clnf_models, 
 int main(int argc, char **argv)
 {
 
-	vector<string> arguments = get_arguments(argc, argv);
+	std::vector<std::string> arguments = get_arguments(argc, argv);
 
 	// no arguments: output usage
 	if (arguments.size() == 1)
 	{
-		cout << "For command line arguments see:" << endl;
-		cout << " https://github.com/TadasBaltrusaitis/OpenFace/wiki/Command-line-arguments";
+		std::cout << "For command line arguments see:" << std::endl;
+		std::cout << " https://github.com/TadasBaltrusaitis/OpenFace/wiki/Command-line-arguments";
 		return 0;
 	}
 
@@ -119,12 +150,12 @@ int main(int argc, char **argv)
 
 	det_params.curr_face_detector = LandmarkDetector::FaceModelParameters::MTCNN_DETECTOR;
 
-	vector<LandmarkDetector::FaceModelParameters> det_parameters;
+	std::vector<LandmarkDetector::FaceModelParameters> det_parameters;
 	det_parameters.push_back(det_params);
 
 	// The modules that are being used for tracking
-	vector<LandmarkDetector::CLNF> face_models;
-	vector<bool> active_models;
+	std::vector<LandmarkDetector::CLNF> face_models;
+	std::vector<bool> active_models;
 
 	int num_faces_max = 4;
 
@@ -132,7 +163,7 @@ int main(int argc, char **argv)
 
 	if (!face_model.loaded_successfully)
 	{
-		cout << "ERROR: Could not load the landmark detector" << endl;
+		std::cout << "ERROR: Could not load the landmark detector" << std::endl;
 		return 1;
 	}
 
@@ -145,7 +176,7 @@ int main(int argc, char **argv)
 	// If can't find MTCNN face detector, default to HOG one
 	if (det_parameters[0].curr_face_detector == LandmarkDetector::FaceModelParameters::MTCNN_DETECTOR && face_model.face_detector_MTCNN.empty())
 	{
-		cout << "INFO: defaulting to HOG-SVM face detector" << endl;
+		std::cout << "INFO: defaulting to HOG-SVM face detector" << std::endl;
 		det_parameters[0].curr_face_detector = LandmarkDetector::FaceModelParameters::HOG_SVM_DETECTOR;
 	}
 
@@ -168,12 +199,12 @@ int main(int argc, char **argv)
 
 	if (!face_model.eye_model)
 	{
-		cout << "WARNING: no eye model found" << endl;
+		std::cout << "WARNING: no eye model found" << std::endl;
 	}
 
 	if (face_analyser.GetAUClassNames().size() == 0 && face_analyser.GetAUClassNames().size() == 0)
 	{
-		cout << "WARNING: no Action Unit models found" << endl;
+		std::cout << "WARNING: no Action Unit models found" << std::endl;
 	}
 
 	// Open a sequence
@@ -232,7 +263,7 @@ int main(int argc, char **argv)
 			// Reading the images
 			cv::Mat_<uchar> grayscale_image = sequence_reader.GetGrayFrame();
 
-			vector<cv::Rect_<float> > face_detections;
+			std::vector<cv::Rect_<float> > face_detections;
 
 			bool all_models_active = true;
 			for (unsigned int model = 0; model < face_models.size(); ++model)
@@ -248,7 +279,7 @@ int main(int argc, char **argv)
 			{
 				if (det_parameters[0].curr_face_detector == LandmarkDetector::FaceModelParameters::HOG_SVM_DETECTOR)
 				{
-					vector<float> confidences;
+					std::vector<float> confidences;
 					LandmarkDetector::DetectFacesHOG(face_detections, grayscale_image, face_models[0].face_detector_HOG, confidences);
 				}
 				else if (det_parameters[0].curr_face_detector == LandmarkDetector::FaceModelParameters::HAAR_DETECTOR)
@@ -257,7 +288,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					vector<float> confidences;
+					std::vector<float> confidences;
 					LandmarkDetector::DetectFacesMTCNN(face_detections, rgb_image, face_models[0].face_detector_MTCNN, confidences);
 				}
 
@@ -313,6 +344,10 @@ int main(int argc, char **argv)
 					detection_success = LandmarkDetector::DetectLandmarksInVideo(rgb_image, face_models[model], det_parameters[model], grayscale_image);
 				}
 			}
+
+			// Remove models that end up tracking overlapping faces
+			// even if initial bounding boxes were not overlapping, they could have ended up converging to the same face
+			RemoveOverlapingModels(face_models, active_models);
 
 			// Keeping track of FPS
 			fps_tracker.AddFrame();
@@ -402,10 +437,10 @@ int main(int argc, char **argv)
 			// Reporting progress
 			if (sequence_reader.GetProgress() >= reported_completion / 10.0)
 			{
-				cout << reported_completion * 10 << "% ";
+				std::cout << reported_completion * 10 << "% ";
 				if (reported_completion == 10)
 				{
-					cout << endl;
+					std::cout << std::endl;
 				}
 				reported_completion = reported_completion + 1;
 			}
